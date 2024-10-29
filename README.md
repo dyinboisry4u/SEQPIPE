@@ -38,7 +38,7 @@ gffread -w gencode.vM25.transcripts.gffread.fa -g GRCm38.primary_assembly.genome
 ## RNA-seq
 RNA-seq data with (or without) spike-in normalizaton. <br>
 Alignment: [STAR](https://github.com/alexdobin/STAR) <br>
-Quantification: [Salmon](https://github.com/COMBINE-lab/salmon) or featureCounts(https://subread.sourceforge.net/featureCounts.html)
+Quantification: [Salmon](https://github.com/COMBINE-lab/salmon) or [featureCounts](https://subread.sourceforge.net/featureCounts.html)
 
 > Run RNA-seq pipe
 ```bash
