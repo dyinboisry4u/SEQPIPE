@@ -233,7 +233,7 @@ if [[ ! -d $trimDir ]]; then
 		$trim_galore --phred33 -j 4 -o $trimDir -q 25 --length 30 -e 0.1 --stringency 4 \
 		--paired $r1 $r2 &> ${trimLogDir}/${sampleName}_cutadapt.log &
 	done
-    echo -e "\n\nFinish trimming for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n"
+    echo -e "\n\nFinish trimming at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n"
 fi
 wait
 
