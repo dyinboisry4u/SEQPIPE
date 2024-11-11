@@ -23,6 +23,9 @@ STAR --runMode genomeGenerate --runThreadN 48 --genomeDir ./PE150_gencode_v39 --
 # transcriptome fasta
 gffread -w gencode.v39.transcripts.gffread.fa -g GRCh38.primary_assembly.genome.fa gencode.v39.primary_assembly.annotation.gtf
 # Bowtie2 index
+bowtie2-build -f GRCh38.primary_assembly.genome.fa --threads 48 ./hg38
+# Bowtie2 human rDNA: https://github.com/databio/ref_decoy/blob/master/human_rDNA.fa.gz
+bowtie2-build -f human_rDNA.fa.gz --threads 12 ./human_rDNA
 ```
 > **mm10**: [gencode release M25](https://www.gencodegenes.org/mouse/release_M25.html)
 ```bash
@@ -33,6 +36,9 @@ STAR --runMode genomeGenerate --runThreadN 48 --genomeDir ./PE150_gencode_m25 --
 # transcriptome fasta
 gffread -w gencode.vM25.transcripts.gffread.fa -g GRCm38.primary_assembly.genome.fa gencode.vM25.primary_assembly.annotation.gtf
 # Bowtie2 index
+bowtie2-build -f GRCm38.primary_assembly.genome.fa --threads 48 ./mm10
+# Bowtie2 mouse rDNA: https://github.com/databio/ref_decoy/blob/master/mouse_rDNA.fa.gz
+bowtie2-build -f mouse_rDNA.fa.gz --threads 12 ./mouse_rDNA
 ```
 
 ## RNA-seq
