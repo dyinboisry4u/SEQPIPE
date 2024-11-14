@@ -46,11 +46,24 @@ if [ $# -ne 8 ]; then
     echo "Error: Invalid number of arguments!"
     usage
 fi
-if [[ -d "$rawDataRawDir" && $(ls -A "$rawDataRawDir") ]]; then
-    echo "Using $rawDataRawDir as input data."
+if [[ "$rawDataRawDir" == *'*'* ]]; then
+    baseDir="$rawDataRawDir"
+    while [[ "$baseDir" == *'*'* ]]; do
+        baseDir="${baseDir%/*}"
+    done
+    if [[ -d "$baseDir" && $(find $rawDataRawDir 2>/dev/null | head -n 1) ]]; then
+        echo "Using $rawDataRawDir as input data."
+    else
+        echo "Error: Invalid or empty rawDataRawDir directory!"
+	    usage
+    fi
 else
-    echo "Error: Invalid or empty rawDataRawDir directory!"
-	usage
+    if [[ -d "$rawDataRawDir" && $(ls -A "$rawDataRawDir") ]]; then
+        echo "Using $rawDataRawDir as input data."
+    else
+        echo "Error: Invalid or empty rawDataRawDir directory!"
+	    usage
+    fi
 fi
 if [[ ! -s "$sampleInfo" ]];then
     echo "Error: $sampleInfo is not a valid file!"
