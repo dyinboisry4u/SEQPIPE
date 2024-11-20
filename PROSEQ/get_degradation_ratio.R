@@ -59,4 +59,4 @@ degrade_ratio <- insert_size %>%
 # save
 degrade_ratio %>% unlist() %>% readr::write_lines(., paste0(runInfo, "_all_sample_degradation_ratio.txt"))
 
-cat("Finish plot!")
+cat("Finish plot!\n")
