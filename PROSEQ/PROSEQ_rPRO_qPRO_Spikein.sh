@@ -19,7 +19,7 @@
 # XXX_002 XXX_PRO-seq_220319_DLD1-PNUTS-dTAG-3h-rep2
 
 usage() {
-    echo "Usage: $0 <rawDataRawDir> <sampleInfo> <runInfo> <spikeIn> <expRef> <libType> <umiLen> <identifyTSS>"
+    echo "Usage: $0 <rawDataRawDir> <sampleInfo> <runInfo> <spikeIn> <expRef> <libType> <umiLen> <identifyTRE>"
     echo "  rawDataRawDir: raw data directory"
     echo "  sampleInfo: space separated sample information file"
     echo "  runInfo: run information, such as date, owner, etc."
@@ -27,7 +27,7 @@ usage() {
     echo "  expRef: experiment genome reference, 'hg38', 'mm10' "
     echo "  libType: PRO-seq library type, 'qPRO' or 'rPRO' "
     echo "  umiLen: the length (n nt) of UMI, between 6 and 12"
-    echo "  identifyTSS: peak calling method, 'dREG', 'PINTS', 'HOMER', 'all' or 'none' "
+    echo "  identifyTRE: peak calling method, 'dREG', 'PINTS', 'HOMER', 'all' or 'none' "
 
     exit 1
 }
@@ -40,7 +40,7 @@ spikeIn=$4
 expRef=$5
 libType=$6
 umiLen=$7
-identifyTSS=$8
+identifyTRE=$8
 
 # check args
 if [ $# -ne 8 ]; then
@@ -87,11 +87,11 @@ if [[ ! ($umiLen -ge 6 && $umiLen -le 12) ]]; then
     usage
 fi
 valid_methods=("dREG" "PINTS" "HOMER" "all" "none")
-if [[ ! " ${valid_methods[@]} " =~ " $identifyTSS " ]]; then
-    echo "Error: Invalid identifyTSS value! Must be 'dREG', 'PINTS', 'HOMER', 'all' or 'none'."
+if [[ ! " ${valid_methods[@]} " =~ " $identifyTRE " ]]; then
+    echo "Error: Invalid identifyTRE value! Must be 'dREG', 'PINTS', 'HOMER', 'all' or 'none'."
     usage
 fi
-echo -e "PRO-seq parameters: \nrawDataRawDir: $rawDataRawDir\nsampleInfo: $sampleInfo\nrunInfo: $runInfo\nspikeIn: $spikeIn\nexpRef: $expRef\nlibType: $libType\numiLen: $umiLen\nidentifyTSS: $identifyTSS"
+echo -e "PRO-seq parameters: \nrawDataRawDir: $rawDataRawDir\nsampleInfo: $sampleInfo\nrunInfo: $runInfo\nspikeIn: $spikeIn\nexpRef: $expRef\nlibType: $libType\numiLen: $umiLen\nidentifyTRE: $identifyTRE"
 
 # library struceture (DNA): 
 # qPRO: { 5' - [ P7 -- i7 (6 base variable) -- GTGACTGGAGTT -- CCTTGGCACCCGAGAATTCCA -- UMI (6 nt) -- C ] -- [insert] -- [ T -- UMI (6nt) -- GATCGTCGGACTGTAGAACTCTGAAC -- i5 (8 base variable) -- P5 ] -- 3' }
@@ -117,7 +117,9 @@ rmdupSpkDir=${workDir}/02-4_remove_duplicates_spikein
 spkScaledBwDir=${workDir}/03_spikein_scaled_bw_track
 cpmScaledBwDir=${workDir}/03_cpm_normalized_bw_track
 noScaledBwDir=${workDir}/03_no_normalized_bw_track
-identifyTSSDir=${workDir}/04_identifyTSS
+identifyTREDir=${workDir}/04_identifyTRE
+pintsDir=${workDir}/04_identifyTRE/PINTS_TRE
+dREGDir=${workDir}/04_identifyTRE/dREG_TRE
 
 # log dirs
 logDir=${workDir}/logs
@@ -136,6 +138,9 @@ noScaledBwLogDir=${logDir}/bamCoverage_no_normalized_bw_log
 # QC dirs
 insertLenDir=${logDir}/flash_estimate_insert_length
 
+# call TRE log
+pintsLogDir=${logDir}/PINTS_call_TRE_log
+dREGLogDir=${logDir}/dREG_call_TRE_log
 
 # all tools in proseq env update at Oct 2024
 # # fastqc version 0.12.1
@@ -154,7 +159,15 @@ umi_tools='/share/home/Grape/software/install_pkg/miniconda3/envs/proseq/bin/umi
 samtools='/share/home/Grape/software/install_pkg/miniconda3/envs/rnaseq/download/samtools/bin/samtools'
 # # deepTools version 3.5.5
 bamCoverage='/share/home/Grape/software/install_pkg/miniconda3/envs/rnaseq/bin/bamCoverage'
-# # dREG version
+# # dREG version Feb 17, 2024 (https://github.com/Danko-Lab/dREG/commit/4a1643a69c36b64ce2b8ba7fb76701e744692e4a)
+dREG='/share/home/Grape/software/install_pkg/dREG-master/run_dREG.bsh'
+# dREG SVR model: (ftp://cbsuftp.tc.cornell.edu/danko/hub/dreg.models/asvm.gdm.6.6M.20170828.rdata)
+dREG_model='/share/home/Grape/software/install_pkg/dREG-master/model/asvm.gdm.6.6M.20170828.rdata'
+# # R packages in rDeps.R and Rgtsvm(https://github.com/Danko-Lab/Rgtsvm) to accelerate SVM with GPU, please please install it first!
+# # bedtools version 2.31.1 (dREG)
+# # bedops version 2.4.41 (dREG) (bedops; bedmap; sort-bed) (https://bedops.readthedocs.io/en/latest/index.html)
+# # tabix (dREG)
+# # bedGraphToBigWig version 2.10 (dREG) (https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/bedGraphToBigWig)
 
 # # PINTS verson 1.1.14
 pints_caller='/share/home/Grape/software/install_pkg/miniconda3/envs/proseq/bin/pints_caller'
@@ -678,25 +691,111 @@ else
 	fi
 fi
 
-# Step4.2: get track for TSS identification
+# Step4.2: get track for dREG input
 
-if [[ $identifyTSS == 'all' || $identifyTSS == 'dREG' ]]; then
+if [[ $identifyTRE == 'all' || $identifyTRE == 'dREG' ]]; then
     echo -e "\n***************************\nGetting no normalized track at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
     if [[ ! -d $noScaledBwDir ]]; then
     	mkdir -p $noScaledBwDir
 		mkdir -p $noScaledBwLogDir
         ls ${rmdupExpDir}/*_${exp_info}_rmdup.bam | while read sample; do
             sampleName=$(basename ${sample%_${exp_info}_rmdup.bam})
-            sb_fwd=${noScaledBwDir}/${sampleName}_none_normalized_singlebase_fwd.bw; sb_rev=${noScaledBwDir}/${sampleName}_none_normalized_singlebase_rev.bw
+            sb_fwd=${noScaledBwDir}/${sampleName}_none_normalized_singlebase_fwd.bw; sb_rev_minus=${noScaledBwDir}/${sampleName}_none_normalized_singlebase_rev_minus.bw
             if [[ ! -s $sb_fwd ]]; then
                 echo "Generating file: $sb_fwd"
-                run_bamCoverage $bam $sb_fwd 163 "None" 1 "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_fwd
+                run_bamCoverage $bam $sb_fwd 83 "None" 1 "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_fwd
+                # if get TSS position
+                # run_bamCoverage $bam $sb_fwd 163 "None" 1 "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_fwd
             fi
-            if [[ ! -s $sb_rev ]]; then
-                echo "Generating file: $sb_rev"
-                run_bamCoverage $bam $sb_rev 147 "None" 1 "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_rev
+            if [[ ! -s $sb_rev_minus ]]; then
+                echo "Generating file: $sb_rev_minus"
+                run_bamCoverage $bam $sb_rev_minus 99 "None" "-1" "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_rev_minus
+                # if get TSS position
+                # run_bamCoverage $bam $sb_rev_minus 147 "None" "-1" "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_rev_minus
             fi
             echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
         done
     fi
 fi
+
+# Step5: identify TRE
+
+# Step5.1 PINTS
+pints_call_peak() {
+
+    local bam=$1               # --bam-file
+    local out_dir=$2           # --save-to
+    local file_prefix=$3       # --file-prefix
+    local log_file_prefix=$4
+
+    # PINTS need TSS position
+    $pints_caller \
+        --exp-type R2_5 \
+        --thread 48 \
+        --mapq-threshold $MAPQ \
+        --bam-file $bam \
+        --save-to $out_dir \
+        --file-prefix $file_prefix \
+        &> ${log_file_prefix}_PINTS.log
+}
+
+# Step5.2 dREG
+
+dREG_call_peak() {
+
+    local fwd_bw=$1               # plus_strand.bw
+    local rev_minus_bw=$2         # minus_strand.bw (rev_minus)
+    local out_prefix=$3
+    local log_file_prefix=$4
+    
+    # bash run_dREG.bsh plus_strand.bw minus_strand.bw out_prefix asvm.RData CPU_cores GPU_id
+    $dREG $fwd_bw $rev_minus_bw $out_prefix $dREG_model 28 0 &> ${log_file_prefix}_dREG.log
+}
+
+
+if [[ $identifyTRE != 'none' ]]; then
+    echo -e "\n***************************\nIdentifying TRE at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+    if [[ ! -d $identifyTREDir ]]; then
+        mkdir -p $identifyTREDir
+        # PINTS
+        if [[ $identifyTRE == 'all' || $identifyTRE == 'PINTS' ]]; then
+            echo -e "\n***************************\nCalling TRE with PINTS at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+            echo -e "PINTS can take multiple bams as input and gain some insight from the replicates. If you have biological replicates, you may want to merge them to call peak: --bam-file test_rep1.bam test_rep2.bam test_rep3.bam\n\n"
+            if [[ ! -d $pintsDir ]]; then
+                mkdir -p $pintsDir
+                mkdir -p $pintsLogDir
+                ls ${rmdupExpDir}/*_${exp_info}_rmdup.bam | while read bam; do
+                    sampleName=$(basename ${bam%_${exp_info}_rmdup.bam})
+                    sampleOutDir=${pintsDir}/${sampleName}
+                    sampleLogPrefix=${pintsLogDir}/${sampleName}
+                    if [[ ! -d $sampleOutDir ]]; then
+                        mkdir -p $sampleOutDir
+                    fi
+                    pints_call_peak $bam $sampleOutDir $sampleName $sampleLogPrefix
+                    echo -e "Finish run pints_caller for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+                done
+            fi
+        fi
+        # dREG
+        if [[ $identifyTRE == 'all' || $identifyTRE == 'dREG' ]]; then
+            echo -e "\n***************************\nCalling TRE with dREG at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+            if [[ ! -d $dREGDir ]]; then
+                mkdir -p $dREGDir
+                mkdir -p $dREGLogDir
+                ls ${noScaledBwDir}/*_none_normalized_singlebase_fwd.bw | while read plus_bw; do
+                    sampleName=$(basename ${plus_bw%_none_normalized_singlebase_fwd.bw})
+                    rev_minus_bw=${plus_bw/fwd.bw/rev_minus.bw}
+                    sampleOutDir=${dREGDir}/${sampleName}
+                    sampleLogPrefix=${dREGLogDir}/${sampleName}
+                    if [[ ! -d $sampleOutDir ]]; then
+                        mkdir -p $sampleOutDir
+                    fi
+                    ssh -T clg005 "dREG_call_peak $plus_bw $rev_minus_bw $sampleOutDir $sampleLogPrefix" &> /dev/null
+                    echo -e "Finish run dREG for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+                done
+            fi
+        fi
+    fi
+fi
+
+echo -e "\n***************************\nFinish PRO-seq processing at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
