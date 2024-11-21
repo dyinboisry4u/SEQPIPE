@@ -16,12 +16,14 @@
 # XXX_002 XXX_RNA-Seq_220319_Hela-rRNA-depletion-rep2
 
 usage() {
-    echo "Usage: $0 <rawDataRawDir> <sampleInfo> <spikeIn> <expRef> <quantMethod>"
+    echo "Usage: $0 <rawDataRawDir> <sampleInfo> <spikeIn> <expRef> <datainfo> <quantMethod> <bw>"
     echo "  rawDataRawDir: raw data directory"
     echo "  sampleInfo: space separated sample information file"
     echo "  spikeIn: if spike-in RNA-Seq, 'Y' or 'N' "
     echo "  expRef: experiment genome reference, 'hg38', 'mm10' "
+    echo "  datainfo: a description for the data, e.g., 'RNAseq_241120' "
     echo "  quantMethod: quantification method, 'featureCounts' or 'Salmon' "
+    echo "  bw: if bigwig for RNA-Seq, 'Y' , or 'N' "
     exit 1
 }
 
@@ -30,10 +32,15 @@ rawDataRawDir=$1
 sampleInfo=$2
 spikeIn=$3
 expRef=$4
-quantMethod=$5
+datainfo=$5
+quantMethod=$6
+bw=$7
+
+
+
 
 # check args
-if [ $# -ne 5 ]; then
+if [ $# -ne 7 ]; then
     echo "Error: Invalid number of arguments!"
     usage
 fi
@@ -59,8 +66,12 @@ if [[ "$quantMethod" != "featureCounts" && "$quantMethod" != "Salmon" ]]; then
     echo "Error: Invalid quantMethod value! Must be 'featureCounts' or 'Salmon'."
     usage
 fi
+if [[ "$bw" != "Y" && "$bw" != "N" ]];then
+    echo "Erroe: Invalid bw value! Must be 'Y' or 'N'."
+    usage
+fi
 
-echo -e "RNA-seq parameters: \nrawDataRawDir: $rawDataRawDir\nsampleInfo: $sampleInfo\nspikeIn: $spikeIn\nexpRef: $expRef\nquantMethod: $quantMethod"
+echo -e "RNA-seq parameters: \nrawDataRawDir: $rawDataRawDir\nsampleInfo: $sampleInfo\nspikeIn: $spikeIn\nexpRef: $expRef\ndatainfo: $datainfo\nquantMethod: $quantMethod\nbw: $bw"
 
 # output dirs
 workDir=`pwd`
@@ -82,7 +93,7 @@ trimLogDir=${logDir}/trim_galore_log
 map2ExpLogDir=${logDir}/experimental_genome_alignment_STAR_log
 map2SpkLogDir=${logDir}/spikein_genome_alignment_STAR_log
 markDupLogDir=${logDir}/picard_MarkDuplicates_log
-summaryDir=${logDir}/alignment_summary.txt
+summaryDir=${logDir}/alignment_summary_${datainfo}.txt
 # filterExpLogDir=${logDir}/exp_filter
 # filterSpkLogDir=${logDir}/spk_filter
 spkScaledBwLogDir=${logDir}/spikein_scaled_bw_bamCoverage_log
@@ -204,7 +215,7 @@ if [[ ! -d $rawDataDir ]]; then
         r2=`ls ${rawDataRawDir}/*2${suffix} | grep $old`
         ln -s $r1 ${rawDataDir}/${new}_R1.fq.gz
         ln -s $r2 ${rawDataDir}/${new}_R2.fq.gz
-        echo -e "${arr[@]} $suffix" >> ${logDir}/sampleInfo_new.txt
+        echo -e "${arr[@]} $suffix" >> ${logDir}/sampleInfo_${datainfo}_new.txt
 	done
     echo -e "Finish renaming"
 else
@@ -219,8 +230,8 @@ if [[ ! -d $rawQcDir ]]; then
     mkdir -p $rawQcDir
 	$fastqc -t 48 --memory 1024 ${rawDataDir}/*.fq.gz -o $rawQcDir &> /dev/null
 fi
-if [[ ! -s ${rawQcDir}/rawdata_multiqc.html ]] || [[ ! -d ${rawQcDir}/rawdata_multiqc_data ]]; then
-	$multiqc -f -n rawdata_multiqc -o $rawQcDir $rawQcDir
+if [[ ! -s ${rawQcDir}/rawdata_multiqc_${datainfo}.html ]] || [[ ! -d ${rawQcDir}/rawdata_multiqc_${datainfo}_data ]]; then
+	$multiqc -f -n rawdata_multiqc_${datainfo} -o $rawQcDir $rawQcDir
 fi
 
 # Step1.2: trim adapter and low quality sequence (trim_galore)
@@ -242,8 +253,8 @@ if [[ ! -d $cleanQcDir ]]; then
 	mkdir -p $cleanQcDir
 	$fastqc -t 48 --memory 1024 ${trimDir}/*.fq.gz -o $cleanQcDir &> /dev/null
 fi
-if [[ ! -s ${cleanQcDir}/cleanData_multiqc.html ]] || [[ ! -d ${cleanQcDir}/cleanData_multiqc_data ]]; then
-	$multiqc -f -n cleanData_multiqc -o $cleanQcDir $trimLogDir $cleanQcDir 
+if [[ ! -s ${cleanQcDir}/cleanData_multiqc_${datainfo}.html ]] || [[ ! -d ${cleanQcDir}/cleanData_multiqc_${datainfo}_data ]]; then
+	$multiqc -f -n cleanData_multiqc_${datainfo} -o $cleanQcDir $trimLogDir $cleanQcDir 
 fi
 
 ####
@@ -434,56 +445,57 @@ if [[ ! -d $summaryDir ]]; then
 fi
 
 # Step4: get bw track
-if [[ $spikeIn == 'Y' ]];then
-	if [[ ! -d $spkScaledBwDir ]];then
-		mkdir -p $spkScaledBwDir
-		mkdir -p $spkScaledBwLogDir
-        echo -e "\n***************************\nGetting spikein normalized track at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-		cat ${logDir}/alignment_summary.txt | sed '1d' | while read line;do
-			arr=($line)
-			sampleName=${arr[0]}
-            # if use unique: scaleFactor=${arr[11]}
-			scaleFactor=${arr[10]}
-			bam=${filterExpBamDir}/${sampleName}_${exp_info}.markdup.paired.bam
-			if [[ ! -s "${spkScaledBwDir}/${sampleName}_ds.bw" ]];then
-                echo "Generating file: ${spkScaledBwDir}/${sampleName}_ds.bw"
-        		$bamCoverage --bam $bam --skipNonCoveredRegions --binSize 1 --numberOfProcessors 48 --outFileName ${spkScaledBwDir}/${sampleName}_ds.bw --scaleFactor $scaleFactor --normalizeUsing None &> ${spkScaledBwLogDir}/${sampleName}_ds.log
-			fi
-            if [[ ! -s "${spkScaledBwDir}/${sampleName}_fwd.bw" ]];then
-                echo "Generating file: ${spkScaledBwDir}/${sampleName}_fwd.bw"
-                $bamCoverage --bam $bam --skipNonCoveredRegions --filterRNAstrand forward --binSize 1 --numberOfProcessors 48 --outFileName ${spkScaledBwDir}/${sampleName}_fwd.bw --scaleFactor $scaleFactor --normalizeUsing None &> ${spkScaledBwLogDir}/${sampleName}_fwd.log
-            fi
-            if [[ ! -s "${spkScaledBwDir}/${sampleName}_rev.bw" ]];then
-                echo "Generating file: ${spkScaledBwDir}/${sampleName}_rev.bw"
-                $bamCoverage --bam $bam --skipNonCoveredRegions --filterRNAstrand reverse --binSize 1 --numberOfProcessors 48 --outFileName ${spkScaledBwDir}/${sampleName}_rev.bw --scaleFactor $scaleFactor --normalizeUsing None &> ${spkScaledBwLogDir}/${sampleName}_rev.log
-            fi
-            echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-		done
-    fi
-else
-	if [[ ! -d $cpmScaledBwDir ]];then
-		mkdir -p $cpmScaledBwDir
-		mkdir -p $cpmScaledBwLogDir
-        echo -e "\n***************************\nGetting CPM normalized track at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-		ls ${filterExpBamDir}/*_${exp_info}.markdup.paired.bam | while read sample;do
-			sampleName=$(basename ${sample%_${exp_info}.markdup.paired.bam})
-			if [[ ! -s "${cpmScaledBwDir}/${sampleName}_ds.bw" ]];then
-                echo "Generating file: ${cpmScaledBwDir}/${sampleName}_ds.bw"
-				$bamCoverage --bam $sample --skipNonCoveredRegions --binSize 1 --numberOfProcessors 48 --outFileName ${cpmScaledBwDir}/${sampleName}_ds.bw --scaleFactor 1 --normalizeUsing CPM &> ${cpmScaledBwLogDir}/${sampleName}_ds.log
-			fi
-            if [[ ! -s "${cpmScaledBwDir}/${sampleName}_fwd.bw" ]];then
-                echo "Generating file: ${cpmScaledBwDir}/${sampleName}_fwd.bw"
-                $bamCoverage --bam $bam --skipNonCoveredRegions --filterRNAstrand forward --binSize 1 --numberOfProcessors 48 --outFileName ${cpmScaledBwDir}/${sampleName}_fwd.bw --scaleFactor 1 --normalizeUsing CPM &> ${cpmScaledBwLogDir}/${sampleName}_fwd.log
-            fi
-            if [[ ! -s "${cpmScaledBwDir}/${sampleName}_rev.bw" ]];then
-                echo "Generating file: ${cpmScaledBwDir}/${sampleName}_rev.bw"
-                $bamCoverage --bam $bam --skipNonCoveredRegions --filterRNAstrand reverse --binSize 1 --numberOfProcessors 48 --outFileName ${cpmScaledBwDir}/${sampleName}_rev.bw --scaleFactor 1 --normalizeUsing CPM &> ${cpmScaledBwLogDir}/${sampleName}_rev.log
-            fi
-            echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-		done
+if [[ $bw == 'Y' ]];then
+	if [[ $spikeIn == 'Y' ]];then
+		if [[ ! -d $spkScaledBwDir ]];then
+			mkdir -p $spkScaledBwDir
+			mkdir -p $spkScaledBwLogDir
+	                echo -e "\n***************************\nGetting spikein normalized track at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+			cat ${logDir}/alignment_summary.txt | sed '1d' | while read line;do
+				arr=($line)
+				sampleName=${arr[0]}
+	       	     # if use unique: scaleFactor=${arr[11]}
+				scaleFactor=${arr[10]}
+				bam=${filterExpBamDir}/${sampleName}_${exp_info}.markdup.paired.bam
+				if [[ ! -s "${spkScaledBwDir}/${sampleName}_ds.bw" ]];then
+	                        echo "Generating file: ${spkScaledBwDir}/${sampleName}_ds.bw"
+	        		$bamCoverage --bam $bam --skipNonCoveredRegions --binSize 1 --numberOfProcessors 48 --outFileName ${spkScaledBwDir}/${sampleName}_ds.bw --scaleFactor $scaleFactor --normalizeUsing None &> ${spkScaledBwLogDir}/${sampleName}_ds.log
+				fi
+	            if [[ ! -s "${spkScaledBwDir}/${sampleName}_fwd.bw" ]];then
+	                echo "Generating file: ${spkScaledBwDir}/${sampleName}_fwd.bw"
+	                $bamCoverage --bam $bam --skipNonCoveredRegions --filterRNAstrand forward --binSize 1 --numberOfProcessors 48 --outFileName ${spkScaledBwDir}/${sampleName}_fwd.bw --scaleFactor $scaleFactor --normalizeUsing None &> ${spkScaledBwLogDir}/${sampleName}_fwd.log
+	            fi
+	            if [[ ! -s "${spkScaledBwDir}/${sampleName}_rev.bw" ]];then
+	                echo "Generating file: ${spkScaledBwDir}/${sampleName}_rev.bw"
+	                $bamCoverage --bam $bam --skipNonCoveredRegions --filterRNAstrand reverse --binSize 1 --numberOfProcessors 48 --outFileName ${spkScaledBwDir}/${sampleName}_rev.bw --scaleFactor $scaleFactor --normalizeUsing None &> ${spkScaledBwLogDir}/${sampleName}_rev.log
+	            fi
+	            echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+			done
+		fi
+	else
+		if [[ ! -d $cpmScaledBwDir ]];then
+			mkdir -p $cpmScaledBwDir
+			mkdir -p $cpmScaledBwLogDir
+	                echo -e "\n***************************\nGetting CPM normalized track at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+			ls ${filterExpBamDir}/*_${exp_info}.markdup.paired.bam | while read sample;do
+				sampleName=$(basename ${sample%_${exp_info}.markdup.paired.bam})
+				if [[ ! -s "${cpmScaledBwDir}/${sampleName}_ds.bw" ]];then
+	                        echo "Generating file: ${cpmScaledBwDir}/${sampleName}_ds.bw"
+					$bamCoverage --bam $sample --skipNonCoveredRegions --binSize 1 --numberOfProcessors 48 --outFileName ${cpmScaledBwDir}/${sampleName}_ds.bw --scaleFactor 1 --normalizeUsing CPM &> ${cpmScaledBwLogDir}/${sampleName}_ds.log
+				fi
+	            if [[ ! -s "${cpmScaledBwDir}/${sampleName}_fwd.bw" ]];then
+	                echo "Generating file: ${cpmScaledBwDir}/${sampleName}_fwd.bw"
+	                $bamCoverage --bam $bam --skipNonCoveredRegions --filterRNAstrand forward --binSize 1 --numberOfProcessors 48 --outFileName ${cpmScaledBwDir}/${sampleName}_fwd.bw --scaleFactor 1 --normalizeUsing CPM &> ${cpmScaledBwLogDir}/${sampleName}_fwd.log
+	            fi
+	            if [[ ! -s "${cpmScaledBwDir}/${sampleName}_rev.bw" ]];then
+	                echo "Generating file: ${cpmScaledBwDir}/${sampleName}_rev.bw"
+	                $bamCoverage --bam $bam --skipNonCoveredRegions --filterRNAstrand reverse --binSize 1 --numberOfProcessors 48 --outFileName ${cpmScaledBwDir}/${sampleName}_rev.bw --scaleFactor 1 --normalizeUsing CPM &> ${cpmScaledBwLogDir}/${sampleName}_rev.log
+	            fi
+	            echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+			done
+		fi
 	fi
 fi
-
 # Step5: Quantification
 # # since featureCounts v2.0.2, both -p and --countReadPairs need to be used to explicitly specify count read pairs (fragments) instead of reads
 # -s 2 to set reversely stranded library
