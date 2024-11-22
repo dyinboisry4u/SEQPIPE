@@ -47,33 +47,61 @@ Alignment: [STAR](https://github.com/alexdobin/STAR) <br>
 Quantification: [Salmon](https://github.com/COMBINE-lab/salmon) or [featureCounts](https://subread.sourceforge.net/featureCounts.html)
 
 > Run RNA-seq pipe
+```
+bash RNASEQ_STAR_Salmon_Spikein.sh <rawDataRawDir> <sampleInfo> <runInfo> <spikeIn> <expRef> <quantMethod> <bw>
+
+<rawDataRawDir>: raw data directory
+<sampleInfo>: space separated sample information file
+<runInfo>: a description for the data, e.g., 'RNAseq_241120'
+<spikeIn>: if spike-in RNA-Seq, 'Y' or 'N'
+<expRef>: experiment genome reference, 'hg38', 'mm10'
+<quantMethod>: quantification method, 'featureCounts' or 'Salmon'
+<bw>: if bigwig for RNA-Seq, 'Y', or 'N'
+```
+For example,
 ```bash
-nohup bash RNASEQ_STAR_Salmon_Spikein.sh /chenfeilab/Gaux/rawDataBackup/test/241018_RNA-Seq sampleInfo.txt N hg38 Salmon &> ./241018_RNASeq.log &
+nohup bash RNASEQ_STAR_Salmon_Spikein.sh /chenfeilab/Gaux/rawDataBackup/test/241018_RNA-Seq sampleInfo.txt 241018_RNASEQ N hg38 Salmon N &> ./241018_RNASeq.log &
+nohup bash RNASEQ_STAR_Salmon_Spikein.sh "/chenfeilab/Gaux/rawDataBackup/*/*" sampleInfo.txt 241111_RNASEQ Y hg38 featureCounts N &> ./241111_RNASeq.log &
 ```
 
 ## PRO-seq
-PRO-seq data with(or without) spike-in normalizaton for [qPRO-seq protocol](https://www.biorxiv.org/content/10.1101/2020.05.18.102277v1.full) and [rPRO-seq protocol](https://www.biorxiv.org/content/10.1101/2024.05.08.593182v1). <br>
+PRO-seq data with (or without) spike-in normalizaton for [qPRO-seq protocol](https://www.biorxiv.org/content/10.1101/2020.05.18.102277v1.full) and [rPRO-seq protocol](https://www.biorxiv.org/content/10.1101/2024.05.08.593182v1). <br>
 Alignment: [Bowtie2](https://github.com/BenLangmead/bowtie2) <br>
 Peak Calling: [dREG](https://github.com/Danko-Lab/dREG) and [PINTS](https://github.com/hyulab/PINTS)
 
 > Run PRO-seq pipe
+```
+bash PROSEQ_rPRO_qPRO_Spikein.sh <rawDataRawDir> <sampleInfo> <runInfo> <spikeIn> <expRef> <libType> <umiLen> <identifyTRE>
+
+<rawDataRawDir>: raw data directory
+<sampleInfo>: space separated sample information file
+<runInfo>: run information, such as date, owner, etc
+<spikeIn>: if spike-in PRO-seq library, 'Y' or 'N'
+<expRef>: experiment genome reference, 'hg38', 'mm10'
+<libType>: PRO-seq library type, 'qPRO' or 'rPRO'
+<umiLen>: the length (n nt) of UMI, between 6 and 12
+<identifyTRE>: peak calling method, 'dREG', 'PINTS', 'all' or 'none'
+```
+For example,
 ```bash
-nohup bash PROSEQ...
+nohup bash PROSEQ_rPRO_qPRO_Spikein.sh /chenfeilab/Gaux/rawDataBackup/xxx/xxxxxx_PRO-seq sampleInfo.txt 241108_PROSEQ N hg38 rPRO 6 all &> 241105_PROseq.log &
+nohup bash PROSEQ_rPRO_qPRO_Spikein.sh "/chenfeilab/Pomelo/try/SXY/24rawdata/*/*" sampleInfo.txt SXY51to60_qPRO Y mm10 qPRO 6 none &> SXY51to60_qPRO.log &
 ```
 
 ## TT-seq
 ...
 ...
 
+
 ## ATAC-seq
 ...
 ...
 
+
 ## ChIP-seq
-
-
 ...
 ...
+
 
 ## CUT&Tag
 ...
