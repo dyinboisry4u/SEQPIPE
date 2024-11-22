@@ -178,7 +178,7 @@ flash='/share/home/Grape/software/install_pkg/FLASH-1.2.11/flash'
 
 # # R script
 Rscript='/opt/ohpc/pub/apps/R/4.2.2/bin/Rscript'
-get_degradation_ratio='/gpfs/chenfeilab/Gaux/PanCaNascent/02_Alignment/get_degradation_ratio.R'
+get_degradation_ratio='/share/home/Grape/SEQPIPE/PROSEQ/get_degradation_ratio.R'
 
 
 # PROseq bowtie2 index
@@ -757,44 +757,48 @@ if [[ $identifyTRE != 'none' ]]; then
     echo -e "\n***************************\nIdentifying TRE at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
     if [[ ! -d $identifyTREDir ]]; then
         mkdir -p $identifyTREDir
-        # PINTS
-        if [[ $identifyTRE == 'all' || $identifyTRE == 'PINTS' ]]; then
-            echo -e "\n***************************\nCalling TRE with PINTS at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-            echo -e "PINTS can take multiple bams as input and gain some insight from the replicates. If you have biological replicates, you may want to merge them to call peak: --bam-file test_rep1.bam test_rep2.bam test_rep3.bam\n\n"
-            if [[ ! -d $pintsDir ]]; then
-                mkdir -p $pintsDir
-                mkdir -p $pintsLogDir
-                ls ${rmdupExpDir}/*_${exp_info}_rmdup.bam | while read bam; do
-                    sampleName=$(basename ${bam%_${exp_info}_rmdup.bam})
-                    sampleOutDir=${pintsDir}/${sampleName}
-                    sampleLogPrefix=${pintsLogDir}/${sampleName}
-                    if [[ ! -d $sampleOutDir ]]; then
-                        mkdir -p $sampleOutDir
-                    fi
-                    pints_call_peak $bam $sampleOutDir $sampleName $sampleLogPrefix
-                    echo -e "Finish run pints_caller for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-                done
-            fi
+    fi
+    # PINTS
+    if [[ $identifyTRE == 'all' || $identifyTRE == 'PINTS' ]]; then
+        echo -e "\n***************************\nCalling TRE with PINTS at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+        echo -e "PINTS can take multiple bams as input and gain some insight from the replicates. If you have biological replicates, you may want to merge them to call peak: --bam-file test_rep1.bam test_rep2.bam test_rep3.bam\n\n"
+        if [[ ! -d $pintsDir ]]; then
+            mkdir -p $pintsDir
+            mkdir -p $pintsLogDir
         fi
-        # dREG
-        if [[ $identifyTRE == 'all' || $identifyTRE == 'dREG' ]]; then
-            echo -e "\n***************************\nCalling TRE with dREG at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-            if [[ ! -d $dREGDir ]]; then
-                mkdir -p $dREGDir
-                mkdir -p $dREGLogDir
-                ls ${noScaledBwDir}/*_none_normalized_singlebase_fwd.bw | while read plus_bw; do
-                    sampleName=$(basename ${plus_bw%_none_normalized_singlebase_fwd.bw})
-                    rev_minus_bw=${plus_bw/fwd.bw/rev_minus.bw}
-                    sampleOutDir=${dREGDir}/${sampleName}
-                    sampleLogPrefix=${dREGLogDir}/${sampleName}
-                    if [[ ! -d $sampleOutDir ]]; then
-                        mkdir -p $sampleOutDir
-                    fi
-                    ssh -T clg005 "dREG_call_peak $plus_bw $rev_minus_bw ${sampleOutDir}/${sampleName} $sampleLogPrefix" &> /dev/null
-                    echo -e "Finish run dREG for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-                done
+        ls ${rmdupExpDir}/*_${exp_info}_rmdup.bam | while read bam; do
+            sampleName=$(basename ${bam%_${exp_info}_rmdup.bam})
+            sampleOutDir=${pintsDir}/${sampleName}
+            sampleLogPrefix=${pintsLogDir}/${sampleName}
+            if [[ ! -d $sampleOutDir ]]; then
+                mkdir -p $sampleOutDir
             fi
+            if [[ ! -s ${sampleOutDir}/${sampleName}_1_divergent_peaks.bed ]]; then
+                pints_call_peak $bam $sampleOutDir $sampleName $sampleLogPrefix
+            fi
+            echo -e "Finish run pints_caller for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+        done
+    fi
+    # dREG
+    if [[ $identifyTRE == 'all' || $identifyTRE == 'dREG' ]]; then
+        echo -e "\n***************************\nCalling TRE with dREG at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+        if [[ ! -d $dREGDir ]]; then
+            mkdir -p $dREGDir
+            mkdir -p $dREGLogDir
         fi
+        ls ${noScaledBwDir}/*_none_normalized_singlebase_fwd.bw | while read plus_bw; do
+            sampleName=$(basename ${plus_bw%_none_normalized_singlebase_fwd.bw})
+            rev_minus_bw=${plus_bw/fwd.bw/rev_minus.bw}
+            sampleOutDir=${dREGDir}/${sampleName}
+            sampleLogPrefix=${dREGLogDir}/${sampleName}
+            if [[ ! -d $sampleOutDir ]]; then
+                mkdir -p $sampleOutDir
+            fi
+            if [[ ! -s ${sampleOutDir}/${sampleName}.dREG.peak.score.bed.gz ]]; then
+                ssh -Tq clg005 "$(typeset -f dREG_call_peak); dREG='$dREG'; dREG_model='$dREG_model'; dREG_call_peak '$plus_bw' '$rev_minus_bw' '${sampleOutDir}/${sampleName}' '$sampleLogPrefix'" &> /dev/null
+            fi
+            echo -e "Finish run dREG for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+        done
     fi
 fi
 
