@@ -130,7 +130,7 @@ map2ExpLogDir=${logDir}/bowtie2_experimental_genome_alignment_log
 map2SpkLogDir=${logDir}/bowtie2_spikein_genome_alignment_log
 rmdupExpLogDir=${logDir}/umitools_rmdup_experimental_log
 rmdupSpkLogDir=${logDir}/umitools_rmdup_spikein_log
-summaryDir=${logDir}/alignment_summary.txt
+summaryDir=${logDir}/alignment_summary_${runInfo}.txt
 spkScaledBwLogDir=${logDir}/bamCoverage_spikein_scaled_bw_log
 cpmScaledBwLogDir=${logDir}/bamCoverage_cpm_normalized_bw_log
 noScaledBwLogDir=${logDir}/bamCoverage_no_normalized_bw_log
@@ -262,7 +262,7 @@ if [[ ! -d $rawDataDir ]]; then
         r2=`ls ${rawDataRawDir}/*2${suffix} | grep $old`
         ln -s $r1 ${rawDataDir}/${new}_R1.fq.gz
         ln -s $r2 ${rawDataDir}/${new}_R2.fq.gz
-        echo -e "${arr[@]} $suffix" >> ${logDir}/sampleInfo_new.txt
+        echo -e "${arr[@]} $suffix" >> ${logDir}/sampleInfo_new_${runInfo}.txt
 	done
     echo -e "Finish renaming"
 else
@@ -280,8 +280,8 @@ if [[ ! -d $rawQcDir ]]; then
     mkdir -p $rawQcDir
 	$fastqc -t 48 --memory 1024 ${rawDataDir}/*.fq.gz -o $rawQcDir &> /dev/null
 fi
-if [[ ! -s ${rawQcDir}/rawdata_multiqc.html ]] || [[ ! -d ${rawQcDir}/rawdata_multiqc_data ]]; then
-	$multiqc -f -n ${runInfo}_rawdata_multiqc -o $rawQcDir $rawQcDir
+if [[ ! -s ${rawQcDir}/rawdata_multiqc_${runInfo}.html ]] || [[ ! -d ${rawQcDir}/rawdata_multiqc_${runInfo}_data ]]; then
+	$multiqc -f -n rawdata_multiqc_${runInfo} -o $rawQcDir $rawQcDir
 fi
 
 # Step1.2: trim adapter and low quality sequence (cutadapt)
@@ -445,8 +445,8 @@ if [[ ! -d $cleanQcDir ]]; then
     echo -e "\n***************************\nSummary QC at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
 	$fastqc -t 48 --memory 1024 ${rmrRNADir}/*.fq.gz -o $cleanQcDir &> /dev/null
 fi
-if [[ ! -s ${cleanQcDir}/cleanData_multiqc.html ]] || [[ ! -d ${cleanQcDir}/cleanData_multiqc_data ]]; then
-	$multiqc -f -n ${runInfo}_cleanData_multiqc -o $cleanQcDir $trimLogDir $trimFastpLogDir $rmrRNALogDir $cleanQcDir 
+if [[ ! -s ${cleanQcDir}/cleanData_multiqc_${runInfo}.html ]] || [[ ! -d ${cleanQcDir}/cleanData_multiqc_${runInfo}_data ]]; then
+	$multiqc -f -n cleanData_multiqc_${runInfo} -o $cleanQcDir $trimLogDir $trimFastpLogDir $rmrRNALogDir $cleanQcDir 
 fi
 
 # Step2: Alignment
@@ -790,7 +790,7 @@ if [[ $identifyTRE != 'none' ]]; then
                     if [[ ! -d $sampleOutDir ]]; then
                         mkdir -p $sampleOutDir
                     fi
-                    ssh -T clg005 "dREG_call_peak $plus_bw $rev_minus_bw $sampleOutDir $sampleLogPrefix" &> /dev/null
+                    ssh -T clg005 "dREG_call_peak $plus_bw $rev_minus_bw ${sampleOutDir}/${sampleName} $sampleLogPrefix" &> /dev/null
                     echo -e "Finish run dREG for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
                 done
             fi

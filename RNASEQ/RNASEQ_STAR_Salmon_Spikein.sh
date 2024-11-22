@@ -16,39 +16,49 @@
 # XXX_002 XXX_RNA-Seq_220319_Hela-rRNA-depletion-rep2
 
 usage() {
-    echo "Usage: $0 <rawDataRawDir> <sampleInfo> <spikeIn> <expRef> <datainfo> <quantMethod> <bw>"
+    echo "Usage: $0 <rawDataRawDir> <sampleInfo> <runInfo> <spikeIn> <expRef> <quantMethod> <bw>"
     echo "  rawDataRawDir: raw data directory"
     echo "  sampleInfo: space separated sample information file"
+    echo "  runInfo: a description for the data, e.g., 'RNAseq_241120' "
     echo "  spikeIn: if spike-in RNA-Seq, 'Y' or 'N' "
     echo "  expRef: experiment genome reference, 'hg38', 'mm10' "
-    echo "  datainfo: a description for the data, e.g., 'RNAseq_241120' "
     echo "  quantMethod: quantification method, 'featureCounts' or 'Salmon' "
-    echo "  bw: if bigwig for RNA-Seq, 'Y' , or 'N' "
+    echo "  bw: if bigwig for RNA-Seq, 'Y', or 'N' "
     exit 1
 }
 
 # args 
 rawDataRawDir=$1
 sampleInfo=$2
-spikeIn=$3
-expRef=$4
-datainfo=$5
+runInfo=$3
+spikeIn=$4
+expRef=$5
 quantMethod=$6
 bw=$7
-
-
-
 
 # check args
 if [ $# -ne 7 ]; then
     echo "Error: Invalid number of arguments!"
     usage
 fi
-if [[ -d "$rawDataRawDir" && $(ls -A "$rawDataRawDir") ]]; then
-    echo "Using $rawDataRawDir as input data."
+if [[ "$rawDataRawDir" == *'*'* ]]; then
+    baseDir="$rawDataRawDir"
+    while [[ "$baseDir" == *'*'* ]]; do
+        baseDir="${baseDir%/*}"
+    done
+    if [[ -d "$baseDir" && $(find $rawDataRawDir 2>/dev/null | head -n 1) ]]; then
+        echo "Using $rawDataRawDir as input data."
+    else
+        echo "Error: Invalid or empty rawDataRawDir directory!"
+	    usage
+    fi
 else
-    echo "Error: Invalid or empty rawDataRawDir directory!"
-	usage
+    if [[ -d "$rawDataRawDir" && $(ls -A "$rawDataRawDir") ]]; then
+        echo "Using $rawDataRawDir as input data."
+    else
+        echo "Error: Invalid or empty rawDataRawDir directory!"
+	    usage
+    fi
 fi
 if [[ ! -s "$sampleInfo" ]];then
     echo "Error: $sampleInfo is not a valid file!"
@@ -71,7 +81,7 @@ if [[ "$bw" != "Y" && "$bw" != "N" ]];then
     usage
 fi
 
-echo -e "RNA-seq parameters: \nrawDataRawDir: $rawDataRawDir\nsampleInfo: $sampleInfo\nspikeIn: $spikeIn\nexpRef: $expRef\ndatainfo: $datainfo\nquantMethod: $quantMethod\nbw: $bw"
+echo -e "RNA-seq parameters: \nrawDataRawDir: $rawDataRawDir\nsampleInfo: $sampleInfo\nrunInfo: $runInfo\nspikeIn: $spikeIn\nexpRef: $expRef\nquantMethod: $quantMethod\nbw: $bw"
 
 # output dirs
 workDir=`pwd`
@@ -93,7 +103,7 @@ trimLogDir=${logDir}/trim_galore_log
 map2ExpLogDir=${logDir}/experimental_genome_alignment_STAR_log
 map2SpkLogDir=${logDir}/spikein_genome_alignment_STAR_log
 markDupLogDir=${logDir}/picard_MarkDuplicates_log
-summaryDir=${logDir}/alignment_summary_${datainfo}.txt
+summaryDir=${logDir}/alignment_summary_${runInfo}.txt
 # filterExpLogDir=${logDir}/exp_filter
 # filterSpkLogDir=${logDir}/spk_filter
 spkScaledBwLogDir=${logDir}/spikein_scaled_bw_bamCoverage_log
@@ -215,7 +225,7 @@ if [[ ! -d $rawDataDir ]]; then
         r2=`ls ${rawDataRawDir}/*2${suffix} | grep $old`
         ln -s $r1 ${rawDataDir}/${new}_R1.fq.gz
         ln -s $r2 ${rawDataDir}/${new}_R2.fq.gz
-        echo -e "${arr[@]} $suffix" >> ${logDir}/sampleInfo_${datainfo}_new.txt
+        echo -e "${arr[@]} $suffix" >> ${logDir}/sampleInfo_new_${runInfo}.txt
 	done
     echo -e "Finish renaming"
 else
@@ -230,8 +240,8 @@ if [[ ! -d $rawQcDir ]]; then
     mkdir -p $rawQcDir
 	$fastqc -t 48 --memory 1024 ${rawDataDir}/*.fq.gz -o $rawQcDir &> /dev/null
 fi
-if [[ ! -s ${rawQcDir}/rawdata_multiqc_${datainfo}.html ]] || [[ ! -d ${rawQcDir}/rawdata_multiqc_${datainfo}_data ]]; then
-	$multiqc -f -n rawdata_multiqc_${datainfo} -o $rawQcDir $rawQcDir
+if [[ ! -s ${rawQcDir}/rawdata_multiqc_${runInfo}.html ]] || [[ ! -d ${rawQcDir}/rawdata_multiqc_${runInfo}_data ]]; then
+	$multiqc -f -n rawdata_multiqc_${runInfo} -o $rawQcDir $rawQcDir
 fi
 
 # Step1.2: trim adapter and low quality sequence (trim_galore)
@@ -253,8 +263,8 @@ if [[ ! -d $cleanQcDir ]]; then
 	mkdir -p $cleanQcDir
 	$fastqc -t 48 --memory 1024 ${trimDir}/*.fq.gz -o $cleanQcDir &> /dev/null
 fi
-if [[ ! -s ${cleanQcDir}/cleanData_multiqc_${datainfo}.html ]] || [[ ! -d ${cleanQcDir}/cleanData_multiqc_${datainfo}_data ]]; then
-	$multiqc -f -n cleanData_multiqc_${datainfo} -o $cleanQcDir $trimLogDir $cleanQcDir 
+if [[ ! -s ${cleanQcDir}/cleanData_multiqc_${runInfo}.html ]] || [[ ! -d ${cleanQcDir}/cleanData_multiqc_${runInfo}_data ]]; then
+	$multiqc -f -n cleanData_multiqc_${runInfo} -o $cleanQcDir $trimLogDir $cleanQcDir 
 fi
 
 ####
@@ -431,14 +441,16 @@ if [[ ! -d $summaryDir ]]; then
         # remove singleton and not pass STAR multi-mapping filter reads
         expQcReads=`echo "2*$(cat ${filterExpBamDir}/${sampleName}_${exp_info}.genome.flagstat | grep "read1" | cut -d " " -f 1)" | bc -l`
         expQcRatio=`printf "%.2f\n" $(echo "100*${expQcReads}/${allReads}" | bc -l)`
-        spkQcReads=`echo "2*$(cat ${filterSpkBamDir}/${sampleName}_${spike_info}.genome.flagstat | grep "read1" | cut -d " " -f 1)" | bc -l`
-        spkQcRatio=`printf "%.2f\n" $(echo "100*${spkQcReads}/${allReads}" | bc -l)`
-        # Unique map to spkin but not map to exp (to avoid homogenous)
-        spkUniqueReads=`echo "2*$(comm --check-order -23 <(samtools view -@ 12 ${map2SpkDir}/${sampleName}_${spike_info}_Aligned.sortedByCoord.out.bam | cut -f 1 | sort -S48G --parallel=24 | uniq) \
-            <(samtools view -@ 12 ${map2ExpDir}/${sampleName}_${exp_info}_Aligned.sortedByCoord.out.bam | cut -f 1 | sort -S62G --parallel=36 | uniq) | wc -l)" | bc -l`
-        spkUniqueRatio=`printf "%.2f\n" $(echo "100*${spkUniqueReads}/${allReads}" | bc -l)`
-        scaleQcFactor=`echo "1000000/${spkQcReads}" | bc -l`
-        scaleUniqueFactor=`echo "1000000/${spkUniqueReads}" | bc -l`
+        if [[ $spikeIn == 'Y' ]]; then
+            spkQcReads=`echo "2*$(cat ${filterSpkBamDir}/${sampleName}_${spike_info}.genome.flagstat | grep "read1" | cut -d " " -f 1)" | bc -l`
+            spkQcRatio=`printf "%.2f\n" $(echo "100*${spkQcReads}/${allReads}" | bc -l)`
+            # Unique map to spkin but not map to exp (to avoid homogenous)
+            spkUniqueReads=`echo "2*$(comm --check-order -23 <(samtools view -@ 12 ${map2SpkDir}/${sampleName}_${spike_info}_Aligned.sortedByCoord.out.bam | cut -f 1 | sort -S48G --parallel=24 | uniq) \
+                <(samtools view -@ 12 ${map2ExpDir}/${sampleName}_${exp_info}_Aligned.sortedByCoord.out.bam | cut -f 1 | sort -S62G --parallel=36 | uniq) | wc -l)" | bc -l`
+            spkUniqueRatio=`printf "%.2f\n" $(echo "100*${spkUniqueReads}/${allReads}" | bc -l)`
+            scaleQcFactor=`echo "1000000/${spkQcReads}" | bc -l`
+            scaleUniqueFactor=`echo "1000000/${spkUniqueReads}" | bc -l`
+        fi
         echo -e ${sampleName}"\t"${allReads}"\t"${expReads}"\t"${expMapRatio}"\t"${expQcReads}"\t"${expQcRatio}"\t"${spkQcReads}"\t"${spkQcRatio}"\t"${spkUniqueReads}"\t"${spkUniqueRatio}"\t"${scaleQcFactor}"\t"${scaleUniqueFactor} >> $summaryDir
     done
     echo -e "Finish calculate alignment summary at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
@@ -496,6 +508,7 @@ if [[ $bw == 'Y' ]];then
 		fi
 	fi
 fi
+
 # Step5: Quantification
 # # since featureCounts v2.0.2, both -p and --countReadPairs need to be used to explicitly specify count read pairs (fragments) instead of reads
 # -s 2 to set reversely stranded library
@@ -539,3 +552,5 @@ if [[ ! -d $quantificationDir ]];then
         exit 1
     fi
 fi
+
+echo -e "\n***************************\nFinish RNA-seq processing at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
