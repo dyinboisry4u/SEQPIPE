@@ -665,17 +665,17 @@ if [[ $spikeIn == 'Y' ]]; then
 else
     echo -e "\n***************************\nGetting CPM normalized track at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
 	if [[ ! -d $cpmScaledBwDir ]]; then
-		mkdir -p $cpmScaledBwDir
-		mkdir -p $cpmScaledBwLogDir
-		ls ${rmdupExpDir}/*_${exp_info}_rmdup.bam | while read sample; do
-			sampleName=$(basename ${sample%_${exp_info}_rmdup.bam})
+        mkdir -p $cpmScaledBwDir
+        mkdir -p $cpmScaledBwLogDir
+        ls ${rmdupExpDir}/*_${exp_info}_rmdup.bam | while read sample; do
+            sampleName=$(basename ${sample%_${exp_info}_rmdup.bam})
             sb_fwd=${cpmScaledBwDir}/${sampleName}_singlebase_fwd.bw; sb_rev=${cpmScaledBwDir}/${sampleName}_singlebase_rev.bw; sb_rev_minus=${cpmScaledBwDir}/${sampleName}_singlebase_rev_minus.bw
             fl_fwd=${cpmScaledBwDir}/${sampleName}_fulllength_fwd.bw; fl_rev=${cpmScaledBwDir}/${sampleName}_fulllength_rev.bw; fl_rev_minus=${cpmScaledBwDir}/${sampleName}_fulllength_rev_minus.bw
-			if [[ ! -s $sb_fwd || ! -s $fl_fwd ]]; then
+            if [[ ! -s $sb_fwd || ! -s $fl_fwd ]]; then
                 echo "Generating file: $sb_fwd and $fl_fwd"
-				run_bamCoverage $sample $sb_fwd 83 "CPM" 1 "--Offset 1" ${cpmScaledBwLogDir}/${sampleName}_singlebase_fwd
+                run_bamCoverage $sample $sb_fwd 83 "CPM" 1 "--Offset 1" ${cpmScaledBwLogDir}/${sampleName}_singlebase_fwd
                 run_bamCoverage $sample $fl_fwd 83 "CPM" 1 "" ${cpmScaledBwLogDir}/${sampleName}_fulllength_fwd
-			fi
+            fi
             if [[ ! -s $sb_rev || ! -s $fl_rev ]]; then
                 echo "Generating file: $sb_rev and $fl_rev"
                 run_bamCoverage $sample $sb_rev 99 "CPM" 1 "--Offset 1" ${cpmScaledBwLogDir}/${sampleName}_singlebase_rev
@@ -687,8 +687,8 @@ else
                 run_bamCoverage $sample $fl_rev_minus 99 "CPM" "-1" "" ${cpmScaledBwLogDir}/${sampleName}_fulllength_rev_minus
             fi
             echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-		done
-	fi
+        done
+    fi
 fi
 
 # Step4.2: get track for dREG input
@@ -697,7 +697,7 @@ if [[ $identifyTRE == 'all' || $identifyTRE == 'dREG' ]]; then
     echo -e "\n***************************\nGetting no normalized track at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
     if [[ ! -d $noScaledBwDir ]]; then
     	mkdir -p $noScaledBwDir
-		mkdir -p $noScaledBwLogDir
+        mkdir -p $noScaledBwLogDir
         ls ${rmdupExpDir}/*_${exp_info}_rmdup.bam | while read sample; do
             sampleName=$(basename ${sample%_${exp_info}_rmdup.bam})
             sb_fwd=${noScaledBwDir}/${sampleName}_none_normalized_singlebase_fwd.bw; sb_rev_minus=${noScaledBwDir}/${sampleName}_none_normalized_singlebase_rev_minus.bw
