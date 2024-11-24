@@ -673,18 +673,18 @@ else
             fl_fwd=${cpmScaledBwDir}/${sampleName}_fulllength_fwd.bw; fl_rev=${cpmScaledBwDir}/${sampleName}_fulllength_rev.bw; fl_rev_minus=${cpmScaledBwDir}/${sampleName}_fulllength_rev_minus.bw
 			if [[ ! -s $sb_fwd || ! -s $fl_fwd ]]; then
                 echo "Generating file: $sb_fwd and $fl_fwd"
-				run_bamCoverage $bam $sb_fwd 83 "CPM" 1 "--Offset 1" ${cpmScaledBwLogDir}/${sampleName}_singlebase_fwd
-                run_bamCoverage $bam $fl_fwd 83 "CPM" 1 "" ${cpmScaledBwLogDir}/${sampleName}_fulllength_fwd
+				run_bamCoverage $sample $sb_fwd 83 "CPM" 1 "--Offset 1" ${cpmScaledBwLogDir}/${sampleName}_singlebase_fwd
+                run_bamCoverage $sample $fl_fwd 83 "CPM" 1 "" ${cpmScaledBwLogDir}/${sampleName}_fulllength_fwd
 			fi
             if [[ ! -s $sb_rev || ! -s $fl_rev ]]; then
                 echo "Generating file: $sb_rev and $fl_rev"
-                run_bamCoverage $bam $sb_rev 99 "CPM" 1 "--Offset 1" ${cpmScaledBwLogDir}/${sampleName}_singlebase_rev
-                run_bamCoverage $bam $fl_rev 99 "CPM" 1 "" ${cpmScaledBwLogDir}/${sampleName}_fulllength_rev
+                run_bamCoverage $sample $sb_rev 99 "CPM" 1 "--Offset 1" ${cpmScaledBwLogDir}/${sampleName}_singlebase_rev
+                run_bamCoverage $sample $fl_rev 99 "CPM" 1 "" ${cpmScaledBwLogDir}/${sampleName}_fulllength_rev
             fi
             if [[ ! -s $sb_rev_minus || ! -s $fl_rev_minus ]]; then
                 echo "Generating file: $sb_rev_minus and $fl_rev_minus"
-                run_bamCoverage $bam $sb_rev_minus 99 "CPM" "-1" "--Offset 1" ${cpmScaledBwLogDir}/${sampleName}_singlebase_rev_minus
-                run_bamCoverage $bam $fl_rev_minus 99 "CPM" "-1" "" ${cpmScaledBwLogDir}/${sampleName}_fulllength_rev_minus
+                run_bamCoverage $sample $sb_rev_minus 99 "CPM" "-1" "--Offset 1" ${cpmScaledBwLogDir}/${sampleName}_singlebase_rev_minus
+                run_bamCoverage $sample $fl_rev_minus 99 "CPM" "-1" "" ${cpmScaledBwLogDir}/${sampleName}_fulllength_rev_minus
             fi
             echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
 		done
@@ -703,15 +703,15 @@ if [[ $identifyTRE == 'all' || $identifyTRE == 'dREG' ]]; then
             sb_fwd=${noScaledBwDir}/${sampleName}_none_normalized_singlebase_fwd.bw; sb_rev_minus=${noScaledBwDir}/${sampleName}_none_normalized_singlebase_rev_minus.bw
             if [[ ! -s $sb_fwd ]]; then
                 echo "Generating file: $sb_fwd"
-                run_bamCoverage $bam $sb_fwd 83 "None" 1 "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_fwd
+                run_bamCoverage $sample $sb_fwd 83 "None" 1 "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_fwd
                 # if get TSS position
-                # run_bamCoverage $bam $sb_fwd 163 "None" 1 "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_fwd
+                # run_bamCoverage $sample $sb_fwd 163 "None" 1 "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_fwd
             fi
             if [[ ! -s $sb_rev_minus ]]; then
                 echo "Generating file: $sb_rev_minus"
-                run_bamCoverage $bam $sb_rev_minus 99 "None" "-1" "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_rev_minus
+                run_bamCoverage $sample $sb_rev_minus 99 "None" "-1" "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_rev_minus
                 # if get TSS position
-                # run_bamCoverage $bam $sb_rev_minus 147 "None" "-1" "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_rev_minus
+                # run_bamCoverage $sample $sb_rev_minus 147 "None" "-1" "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_rev_minus
             fi
             echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
         done

@@ -373,7 +373,7 @@ if [[ ! -d $filterExpBamDir ]];then
 			    --INPUT $bam \
 			    --OUTPUT $markDupBam \
 			    --METRICS_FILE $markDupMetric &> ${markDupLogDir}/${sampleName}_${exp_info}_markdup.log
-            
+
             filteredGenomeBam=${filterExpBamDir}/${sampleName}_${exp_info}.markdup.paired.bam
             $samtools view -@ 48 -bS -f 2 -o $filteredGenomeBam $markDupBam
             $samtools index -@ 48 $filteredGenomeBam
@@ -470,7 +470,7 @@ if [[ $bw == 'Y' ]];then
 				scaleFactor=${arr[10]}
 				bam=${filterExpBamDir}/${sampleName}_${exp_info}.markdup.paired.bam
 				if [[ ! -s "${spkScaledBwDir}/${sampleName}_ds.bw" ]];then
-	                        echo "Generating file: ${spkScaledBwDir}/${sampleName}_ds.bw"
+	                echo "Generating file: ${spkScaledBwDir}/${sampleName}_ds.bw"
 	        		$bamCoverage --bam $bam --skipNonCoveredRegions --binSize 1 --numberOfProcessors 48 --outFileName ${spkScaledBwDir}/${sampleName}_ds.bw --scaleFactor $scaleFactor --normalizeUsing None &> ${spkScaledBwLogDir}/${sampleName}_ds.log
 				fi
 	            if [[ ! -s "${spkScaledBwDir}/${sampleName}_fwd.bw" ]];then
@@ -492,16 +492,16 @@ if [[ $bw == 'Y' ]];then
 			ls ${filterExpBamDir}/*_${exp_info}.markdup.paired.bam | while read sample;do
 				sampleName=$(basename ${sample%_${exp_info}.markdup.paired.bam})
 				if [[ ! -s "${cpmScaledBwDir}/${sampleName}_ds.bw" ]];then
-	                        echo "Generating file: ${cpmScaledBwDir}/${sampleName}_ds.bw"
+	                echo "Generating file: ${cpmScaledBwDir}/${sampleName}_ds.bw"
 					$bamCoverage --bam $sample --skipNonCoveredRegions --binSize 1 --numberOfProcessors 48 --outFileName ${cpmScaledBwDir}/${sampleName}_ds.bw --scaleFactor 1 --normalizeUsing CPM &> ${cpmScaledBwLogDir}/${sampleName}_ds.log
 				fi
 	            if [[ ! -s "${cpmScaledBwDir}/${sampleName}_fwd.bw" ]];then
 	                echo "Generating file: ${cpmScaledBwDir}/${sampleName}_fwd.bw"
-	                $bamCoverage --bam $bam --skipNonCoveredRegions --filterRNAstrand forward --binSize 1 --numberOfProcessors 48 --outFileName ${cpmScaledBwDir}/${sampleName}_fwd.bw --scaleFactor 1 --normalizeUsing CPM &> ${cpmScaledBwLogDir}/${sampleName}_fwd.log
+	                $bamCoverage --bam $sample --skipNonCoveredRegions --filterRNAstrand forward --binSize 1 --numberOfProcessors 48 --outFileName ${cpmScaledBwDir}/${sampleName}_fwd.bw --scaleFactor 1 --normalizeUsing CPM &> ${cpmScaledBwLogDir}/${sampleName}_fwd.log
 	            fi
 	            if [[ ! -s "${cpmScaledBwDir}/${sampleName}_rev.bw" ]];then
 	                echo "Generating file: ${cpmScaledBwDir}/${sampleName}_rev.bw"
-	                $bamCoverage --bam $bam --skipNonCoveredRegions --filterRNAstrand reverse --binSize 1 --numberOfProcessors 48 --outFileName ${cpmScaledBwDir}/${sampleName}_rev.bw --scaleFactor 1 --normalizeUsing CPM &> ${cpmScaledBwLogDir}/${sampleName}_rev.log
+	                $bamCoverage --bam $sample --skipNonCoveredRegions --filterRNAstrand reverse --binSize 1 --numberOfProcessors 48 --outFileName ${cpmScaledBwDir}/${sampleName}_rev.bw --scaleFactor 1 --normalizeUsing CPM &> ${cpmScaledBwLogDir}/${sampleName}_rev.log
 	            fi
 	            echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
 			done
