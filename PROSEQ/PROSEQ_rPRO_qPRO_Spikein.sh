@@ -795,7 +795,7 @@ if [[ $identifyTRE != 'none' ]]; then
                 mkdir -p $sampleOutDir
             fi
             if [[ ! -s ${sampleOutDir}/${sampleName}.dREG.peak.score.bed.gz ]]; then
-                ssh -Tq clg005 "$(typeset -f dREG_call_peak); dREG='$dREG'; dREG_model='$dREG_model'; dREG_call_peak '$plus_bw' '$rev_minus_bw' '${sampleOutDir}/${sampleName}' '$sampleLogPrefix'" &> /dev/null
+                ssh -Tqn clg005 "$(typeset -f dREG_call_peak); dREG='$dREG'; dREG_model='$dREG_model'; dREG_call_peak '$plus_bw' '$rev_minus_bw' '${sampleOutDir}/${sampleName}' '$sampleLogPrefix'" &> /dev/null
             fi
             echo -e "Finish run dREG for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
         done
