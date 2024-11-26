@@ -245,6 +245,7 @@ if [[ ! -s ${rawQcDir}/rawdata_multiqc_${runInfo}.html ]] || [[ ! -d ${rawQcDir}
 fi
 
 # Step1.2: trim adapter and low quality sequence (trim_galore)
+nohup_number=0
 if [[ ! -d $trimDir ]]; then
     mkdir -p $trimDir
 	mkdir -p $trimLogDir
@@ -253,6 +254,11 @@ if [[ ! -d $trimDir ]]; then
 		sampleName=$(basename ${r1%_R1.fq.gz})
 		$trim_galore --phred33 -j 4 -o $trimDir -q 25 --length 30 -e 0.1 --stringency 4 \
 		--paired $r1 $r2 &> ${trimLogDir}/${sampleName}_cutadapt.log &
+        nohup_number=`echo $nohup_number+8 | bc`
+        if [[ $nohup_number -eq 48 ]]; then
+            wait
+            nohup_number=0
+        fi
 	done
     echo -e "\n\nFinish trimming at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n"
 fi
