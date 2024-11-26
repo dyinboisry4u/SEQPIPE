@@ -636,7 +636,7 @@ if [[ $spikeIn == 'Y' ]]; then
 	if [[ ! -d $spkScaledBwDir ]]; then
 		mkdir -p $spkScaledBwDir
 		mkdir -p $spkScaledBwLogDir
-		cat ${logDir}/alignment_summary.txt | sed '1d' | while read line; do
+		cat ${logDir}/alignment_summary_${runInfo}.txt | sed '1d' | while read line; do
 			arr=($line)
 			sampleName=${arr[0]}
             # if use unique: scaleFactor=${arr[14]}
