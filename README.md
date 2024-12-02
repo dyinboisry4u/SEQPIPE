@@ -52,7 +52,7 @@ bash RNASEQ_STAR_Salmon_Spikein.sh <rawDataRawDir> <sampleInfo> <runInfo> <spike
 
 <rawDataRawDir>: raw data directory
 <sampleInfo>: space separated sample information file
-<runInfo>: a description for the data, e.g., 'RNAseq_241120'
+<runInfo>: a description for the run, e.g., 'RNAseq_241120'
 <spikeIn>: if spike-in RNA-Seq, 'Y' or 'N'
 <expRef>: experiment genome reference, 'hg38', 'mm10'
 <quantMethod>: quantification method, 'featureCounts' or 'Salmon'
@@ -64,8 +64,8 @@ nohup bash RNASEQ_STAR_Salmon_Spikein.sh /chenfeilab/Gaux/rawDataBackup/test/241
 nohup bash RNASEQ_STAR_Salmon_Spikein.sh "/chenfeilab/Gaux/rawDataBackup/*/*" sampleInfo.txt 241111_RNASEQ Y hg38 featureCounts N &> ./241111_RNASeq.log &
 ```
 
-## PRO-seq
-PRO-seq data with (or without) spike-in normalizaton for [qPRO-seq protocol](https://www.biorxiv.org/content/10.1101/2020.05.18.102277v1.full) and [rPRO-seq protocol](https://www.biorxiv.org/content/10.1101/2024.05.08.593182v1). <br>
+## PRO-seq/cap
+PRO-seq data with (or without) spike-in normalizaton for [qPRO-seq protocol](https://www.biorxiv.org/content/10.1101/2020.05.18.102277v1.full) and [rPRO-seq protocol](https://www.biorxiv.org/content/10.1101/2024.05.08.593182v1). PRO-cap is [PRO-cap protocol](https://www.nature.com/articles/nprot.2016.086) but a library struceture same as qPRO-seq.<br>
 Alignment: [Bowtie2](https://github.com/BenLangmead/bowtie2) <br>
 Peak Calling: [dREG](https://github.com/Danko-Lab/dREG) and [PINTS](https://github.com/hyulab/PINTS)
 
@@ -77,15 +77,17 @@ bash PROSEQ_rPRO_qPRO_Spikein.sh <rawDataRawDir> <sampleInfo> <runInfo> <spikeIn
 <sampleInfo>: space separated sample information file
 <runInfo>: run information, such as date, owner, etc
 <spikeIn>: if spike-in PRO-seq library, 'Y' or 'N'
-<expRef>: experiment genome reference, 'hg38', 'mm10'
-<libType>: PRO-seq library type, 'qPRO' or 'rPRO'
+<expRef>: experiment genome reference, 'hg38', 'hg19' or 'mm10'
+<libType>: PRO-seq library type, 'qPRO', 'rPRO' or 'PROcap'
 <umiLen>: the length (n nt) of UMI, between 6 and 12
 <identifyTRE>: peak calling method, 'dREG', 'PINTS', 'all' or 'none'
+<noNormBw>: if get no normalized bigwig (only for low sequencing depth sample to merge), 'Y' or 'N'
 ```
 For example,
 ```bash
-nohup bash PROSEQ_rPRO_qPRO_Spikein.sh /chenfeilab/Gaux/rawDataBackup/xxx/xxxxxx_PRO-seq sampleInfo.txt 241108_PROSEQ N hg38 rPRO 6 all &> 241105_PROseq.log &
-nohup bash PROSEQ_rPRO_qPRO_Spikein.sh "/chenfeilab/Pomelo/try/SXY/24rawdata/*/*" sampleInfo.txt SXY51to60_qPRO Y mm10 qPRO 6 none &> SXY51to60_qPRO.log &
+nohup bash PROSEQ_rPRO_qPRO_Spikein.sh /chenfeilab/Gaux/rawDataBackup/xxx/xxxxxx_PRO-seq sampleInfo.txt 241108_PROSEQ N hg38 rPRO 6 all Y &> 241105_rPROseq.log &
+nohup bash PROSEQ_rPRO_qPRO_Spikein.sh "/chenfeilab/Pomelo/try/SXY/24rawdata/*/*" sampleInfo.txt SXY51to60_qPRO Y mm10 qPRO 6 none N &> SXY51to60_qPROseq.log &
+nohup bash PROSEQ_rPRO_qPRO_Spikein.sh /chenfeilab/Gaux/rawDataBackup/xxx/xxxxxx_PRO-cap sampleInfo.txt 241130_PROCAP N hg38 PROcap 6 none N &> 241130_PROcap.log &
 ```
 
 ## TT-seq
