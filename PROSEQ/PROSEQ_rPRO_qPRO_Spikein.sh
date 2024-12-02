@@ -255,10 +255,13 @@ echo -e "experimental genome is: ${exp_info} \nspike-in genome is: ${spike_info}
 # WARNING: File name must have same suffix pattern!
 
 echo -e "\n***************************\nRenaming files at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-mkdir $logDir
+if [[ ! -d $logDir ]]; then
+    mkdir $logDir
+fi
+
 if [[ ! -d $rawDataDir ]]; then
-	mkdir -p $rawDataDir
-	cat $sampleInfo | while read file; do
+    mkdir -p $rawDataDir
+    cat $sampleInfo | while read file; do
         arr=($file)
         old=${arr[0]}
         new=${arr[1]}
@@ -269,10 +272,10 @@ if [[ ! -d $rawDataDir ]]; then
         ln -s $r1 ${rawDataDir}/${new}_R1.fq.gz
         ln -s $r2 ${rawDataDir}/${new}_R2.fq.gz
         echo -e "${arr[@]} $suffix" >> ${logDir}/sampleInfo_new_${runInfo}.txt
-	done
+    done
     echo -e "Finish renaming"
 else
-	:
+    :
 fi
 
 
@@ -284,10 +287,10 @@ echo -e "\n***************************\nTrimming and QC at $(date +%Y"-"%m"-"%d"
 
 if [[ ! -d $rawQcDir ]]; then
     mkdir -p $rawQcDir
-	$fastqc -t 48 --memory 1024 ${rawDataDir}/*.fq.gz -o $rawQcDir &> /dev/null
+    $fastqc -t 48 --memory 1024 ${rawDataDir}/*.fq.gz -o $rawQcDir &> /dev/null
 fi
 if [[ ! -s ${rawQcDir}/rawdata_multiqc_${runInfo}.html ]] || [[ ! -d ${rawQcDir}/rawdata_multiqc_${runInfo}_data ]]; then
-	$multiqc -f -n rawdata_multiqc_${runInfo} -o $rawQcDir $rawQcDir
+    $multiqc -f -n rawdata_multiqc_${runInfo} -o $rawQcDir $rawQcDir
 fi
 
 # Step1.2: trim adapter and low quality sequence (cutadapt)
@@ -295,7 +298,7 @@ fi
 
 if [[ ! -d $trimDir ]]; then
     mkdir -p $trimDir
-	mkdir -p $trimLogDir
+    mkdir -p $trimLogDir
 fi
 echo -e "\n***************************\nStart run cutadapt at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
 for r1 in `ls ${rawDataDir}/*_R1.fq.gz`; do
@@ -453,12 +456,12 @@ done
 # Step1.5: clean data fastqc
 
 if [[ ! -d $cleanQcDir ]]; then
-	mkdir -p $cleanQcDir
+    mkdir -p $cleanQcDir
     echo -e "\n***************************\nSummary QC at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-	$fastqc -t 48 --memory 1024 ${rmrRNADir}/*.fq.gz -o $cleanQcDir &> /dev/null
+    $fastqc -t 48 --memory 1024 ${rmrRNADir}/*.fq.gz -o $cleanQcDir &> /dev/null
 fi
 if [[ ! -s ${cleanQcDir}/cleanData_multiqc_${runInfo}.html ]] || [[ ! -d ${cleanQcDir}/cleanData_multiqc_${runInfo}_data ]]; then
-	$multiqc -f -n cleanData_multiqc_${runInfo} -o $cleanQcDir $trimLogDir $trimFastpLogDir $rmrRNALogDir $cleanQcDir 
+    $multiqc -f -n cleanData_multiqc_${runInfo} -o $cleanQcDir $trimLogDir $trimFastpLogDir $rmrRNALogDir $cleanQcDir 
 fi
 
 # Step2: Alignment
@@ -470,7 +473,7 @@ fi
 echo -e "\n***************************\nAligning to experimental genome at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
 if [[ ! -d $map2ExpDir ]]; then
     mkdir -p $map2ExpDir
-	mkdir -p $map2ExpLogDir
+    mkdir -p $map2ExpLogDir
 fi
 # if [[ ! `ls ${map2ExpDir}/*_${exp_info}.bam 2> /dev/null` ]]; then
 #     echo -e ""
@@ -541,7 +544,7 @@ fi
 echo -e "\n***************************\nDeduplicating for experimental bam at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
 if [[ ! -d $rmdupExpDir ]]; then
     mkdir -p $rmdupExpDir
-	mkdir -p $rmdupExpLogDir
+    mkdir -p $rmdupExpLogDir
 fi
 for bam in `ls ${map2ExpDir}/*_${exp_info}.bam`; do
     fileName=$(basename ${bam%.bam})
@@ -647,9 +650,9 @@ run_bamCoverage() {
 # Use CPM but not RPKM, cause: https://www.biostars.org/p/9474318/
 if [[ $spikeIn == 'Y' ]]; then
     echo -e "\n***************************\nGetting spikein normalized track at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-	if [[ ! -d $spkScaledBwDir ]]; then
-		mkdir -p $spkScaledBwDir
-		mkdir -p $spkScaledBwLogDir
+    if [[ ! -d $spkScaledBwDir ]]; then
+        mkdir -p $spkScaledBwDir
+        mkdir -p $spkScaledBwLogDir
     fi
     cat ${logDir}/alignment_summary_${runInfo}.txt | sed '1d' | while read line; do
         arr=($line)
@@ -688,7 +691,7 @@ if [[ $spikeIn == 'Y' ]]; then
     done
 else
     echo -e "\n***************************\nGetting CPM normalized track at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-	if [[ ! -d $cpmScaledBwDir ]]; then
+    if [[ ! -d $cpmScaledBwDir ]]; then
         mkdir -p $cpmScaledBwDir
         mkdir -p $cpmScaledBwLogDir
     fi

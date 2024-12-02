@@ -212,10 +212,13 @@ echo -e "experimental genome is: ${exp_info} \nspike-in genome is: ${spike_info}
 # Step0: link raw data and rename
 # WARNING: File name must have same suffix pattern!
 echo -e "\n***************************\nRenaming files at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-mkdir $logDir
+if [[ ! -d $logDir ]]; then
+    mkdir $logDir
+fi
+
 if [[ ! -d $rawDataDir ]]; then
-	mkdir -p $rawDataDir
-	cat $sampleInfo | while read file; do
+    mkdir -p $rawDataDir
+    cat $sampleInfo | while read file; do
         arr=($file)
         old=${arr[0]}
         new=${arr[1]}
@@ -226,10 +229,10 @@ if [[ ! -d $rawDataDir ]]; then
         ln -s $r1 ${rawDataDir}/${new}_R1.fq.gz
         ln -s $r2 ${rawDataDir}/${new}_R2.fq.gz
         echo -e "${arr[@]} $suffix" >> ${logDir}/sampleInfo_new_${runInfo}.txt
-	done
+    done
     echo -e "Finish renaming"
 else
-	:
+    :
 fi
 
 ####
@@ -238,39 +241,39 @@ echo -e "\n***************************\nTrimming and QC at $(date +%Y"-"%m"-"%d"
 # Step1.1: raw data qc
 if [[ ! -d $rawQcDir ]]; then
     mkdir -p $rawQcDir
-	$fastqc -t 48 --memory 1024 ${rawDataDir}/*.fq.gz -o $rawQcDir &> /dev/null
+    $fastqc -t 48 --memory 1024 ${rawDataDir}/*.fq.gz -o $rawQcDir &> /dev/null
 fi
 if [[ ! -s ${rawQcDir}/rawdata_multiqc_${runInfo}.html ]] || [[ ! -d ${rawQcDir}/rawdata_multiqc_${runInfo}_data ]]; then
-	$multiqc -f -n rawdata_multiqc_${runInfo} -o $rawQcDir $rawQcDir
+    $multiqc -f -n rawdata_multiqc_${runInfo} -o $rawQcDir $rawQcDir
 fi
 
 # Step1.2: trim adapter and low quality sequence (trim_galore)
 nohup_number=0
 if [[ ! -d $trimDir ]]; then
     mkdir -p $trimDir
-	mkdir -p $trimLogDir
-	for r1 in `ls ${rawDataDir}/*_R1.fq.gz`; do
-		r2=${r1/R1.fq.gz/R2.fq.gz}
-		sampleName=$(basename ${r1%_R1.fq.gz})
-		$trim_galore --phred33 -j 4 -o $trimDir -q 25 --length 30 -e 0.1 --stringency 4 \
-		--paired $r1 $r2 &> ${trimLogDir}/${sampleName}_cutadapt.log &
+    mkdir -p $trimLogDir
+    for r1 in `ls ${rawDataDir}/*_R1.fq.gz`; do
+        r2=${r1/R1.fq.gz/R2.fq.gz}
+        sampleName=$(basename ${r1%_R1.fq.gz})
+        $trim_galore --phred33 -j 4 -o $trimDir -q 25 --length 30 -e 0.1 --stringency 4 \
+        --paired $r1 $r2 &> ${trimLogDir}/${sampleName}_cutadapt.log &
         nohup_number=`echo $nohup_number+8 | bc`
         if [[ $nohup_number -eq 48 ]]; then
             wait
             nohup_number=0
         fi
-	done
+    done
     echo -e "\n\nFinish trimming at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n"
 fi
 wait
 
 # Step1.3: trimmed data qc
 if [[ ! -d $cleanQcDir ]]; then
-	mkdir -p $cleanQcDir
-	$fastqc -t 48 --memory 1024 ${trimDir}/*.fq.gz -o $cleanQcDir &> /dev/null
+    mkdir -p $cleanQcDir
+    $fastqc -t 48 --memory 1024 ${trimDir}/*.fq.gz -o $cleanQcDir &> /dev/null
 fi
 if [[ ! -s ${cleanQcDir}/cleanData_multiqc_${runInfo}.html ]] || [[ ! -d ${cleanQcDir}/cleanData_multiqc_${runInfo}_data ]]; then
-	$multiqc -f -n cleanData_multiqc_${runInfo} -o $cleanQcDir $trimLogDir $cleanQcDir 
+    $multiqc -f -n cleanData_multiqc_${runInfo} -o $cleanQcDir $trimLogDir $cleanQcDir 
 fi
 
 ####
@@ -309,7 +312,7 @@ run_star_alignment() {
 echo -e "\n***************************\nAligning to experimental at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
 if [[ ! -d $map2ExpDir ]]; then
     mkdir -p $map2ExpDir
-	mkdir -p $map2ExpLogDir
+    mkdir -p $map2ExpLogDir
 fi
 for r1 in `ls ${trimDir}/*_1.fq.gz`;do
     r2=${r1/R1_val_1.fq.gz/R2_val_2.fq.gz}
