@@ -60,8 +60,8 @@ bash RNASEQ_STAR_Salmon_Spikein.sh <rawDataRawDir> <sampleInfo> <runInfo> <spike
 ```
 For example,
 ```bash
-nohup bash RNASEQ_STAR_Salmon_Spikein.sh /chenfeilab/Gaux/rawDataBackup/test/241018_RNA-Seq sampleInfo.txt 241018_RNASEQ N hg38 Salmon N &> ./241018_RNASeq.log &
-nohup bash RNASEQ_STAR_Salmon_Spikein.sh "/chenfeilab/Gaux/rawDataBackup/*/*" sampleInfo.txt 241111_RNASEQ Y hg38 featureCounts N &> ./241111_RNASeq.log &
+nohup bash RNASEQ_STAR_Salmon_Spikein.sh /chenfeilab/Gaux/rawDataBackup/test/241018_RNA-Seq sampleInfo.txt 241018_RNASEQ N hg38 Salmon N &> 241018_RNASeq.log &
+nohup bash RNASEQ_STAR_Salmon_Spikein.sh "/chenfeilab/Gaux/rawDataBackup/*/*" sampleInfo.txt 241111_RNASEQ Y hg38 featureCounts N &> 241111_RNASeq.log &
 ```
 
 ## PRO-seq/cap
@@ -72,7 +72,7 @@ Peak Calling: [dREG](https://github.com/Danko-Lab/dREG) and [PINTS](https://gith
 
 > Run PRO-seq pipe
 ```
-bash PROSEQ_rPRO_qPRO_Spikein.sh <rawDataRawDir> <sampleInfo> <runInfo> <spikeIn> <expRef> <libType> <umiLen> <identifyTRE>
+bash PROSEQ_rPRO_qPRO_Spikein.sh <rawDataRawDir> <sampleInfo> <runInfo> <spikeIn> <expRef> <libType> <umiLen> <identifyTRE> <noNormBw>
 
 <rawDataRawDir>: raw data directory
 <sampleInfo>: space separated sample information file

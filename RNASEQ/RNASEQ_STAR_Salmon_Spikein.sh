@@ -310,49 +310,50 @@ echo -e "\n***************************\nAligning to experimental at $(date +%Y"-
 if [[ ! -d $map2ExpDir ]]; then
     mkdir -p $map2ExpDir
 	mkdir -p $map2ExpLogDir
-    if [[ ! `ls ${map2ExpDir}/*_${exp_info}_Aligned.sortedByCoord.out.bam 2> /dev/null` ]]; then
-        for r1 in `ls ${trimDir}/*_1.fq.gz`;do
-            r2=${r1/R1_val_1.fq.gz/R2_val_2.fq.gz}
-            sampleName=$(basename ${r1%_R1_val_1.fq.gz})
-            outPrefix=${map2ExpDir}/${sampleName}_${exp_info}_
-            logName=${map2ExpLogDir}/${sampleName}_${exp_info}_STAR.log
-            if [[ $quantMethod == 'featureCounts' ]]; then
-                # for old lab pipeline, we always used uniquely mapped reads for gene expression, but in new pipe we conside the multimappers: see also https://www.biostars.org/p/9476989/
-                run_star_alignment $expStarIndex $r1 $r2 $outPrefix 1 "GeneCounts" "" $logName
-            elif [[ $quantMethod == 'Salmon' ]]; then
-                # ignore '--outSAMstrandField intronMotif' which suggested for non-stranded RNA-seq
-                # WARNING: after STAR 2.7.11b '--quantTranscriptomeBan Singleend' was substituted by '--quantTranscriptomeSAMoutput BanSingleEnd'. see https://github.com/alexdobin/star/releases
-                run_star_alignment $expStarIndex $r1 $r2 $outPrefix 20 "TranscriptomeSAM GeneCounts" "--quantTranscriptomeSAMoutput BanSingleEnd --alignSJDBoverhangMin 1 --alignSJoverhangMin 8 --outSAMattributes NH HI AS NM MD" $logName
-            else
-                exit 1
-            fi
-            echo -e "Finish alignment for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-        done
-    fi
 fi
+for r1 in `ls ${trimDir}/*_1.fq.gz`;do
+    r2=${r1/R1_val_1.fq.gz/R2_val_2.fq.gz}
+    sampleName=$(basename ${r1%_R1_val_1.fq.gz})
+    outPrefix=${map2ExpDir}/${sampleName}_${exp_info}_
+    logName=${map2ExpLogDir}/${sampleName}_${exp_info}_STAR.log
+    if [[ ! -s "${outPrefix}Aligned.sortedByCoord.out.bam" ]]; then
+        if [[ $quantMethod == 'featureCounts' ]]; then
+            # for old lab pipeline, we always used uniquely mapped reads for gene expression, but in new pipe we conside the multimappers: see also https://www.biostars.org/p/9476989/
+            run_star_alignment $expStarIndex $r1 $r2 $outPrefix 1 "GeneCounts" "" $logName
+        elif [[ $quantMethod == 'Salmon' ]]; then
+            # ignore '--outSAMstrandField intronMotif' which suggested for non-stranded RNA-seq
+            # WARNING: after STAR 2.7.11b '--quantTranscriptomeBan Singleend' was substituted by '--quantTranscriptomeSAMoutput BanSingleEnd'. see https://github.com/alexdobin/star/releases
+            run_star_alignment $expStarIndex $r1 $r2 $outPrefix 20 "TranscriptomeSAM GeneCounts" "--quantTranscriptomeSAMoutput BanSingleEnd --alignSJDBoverhangMin 1 --alignSJoverhangMin 8 --outSAMattributes NH HI AS NM MD" $logName
+        else
+            exit 1
+        fi
+    fi
+    echo -e "Finish alignment for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+done
+
 # align to spike-in
 if [[ $spikeIn == 'Y' ]];then
     echo -e "\n***************************\nAligning to spike-in at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
     if [[ ! -d $map2SpkDir ]];then
         mkdir -p $map2SpkDir
         mkdir -p $map2SpkLogDir
-        if [[ ! `ls ${map2SpkDir}/*_${spike_info}_Aligned.sortedByCoord.out.bam 2> /dev/null` ]]; then
-            for r1 in `ls ${trimDir}/*_1.fq.gz`;do
-                r2=${r1/R1_val_1.fq.gz/R2_val_2.fq.gz}
-                sampleName=$(basename ${r1%_R1_val_1.fq.gz})
-                outPrefix=${map2SpkDir}/${sampleName}_${spike_info}_
-                logName=${map2SpkLogDir}/${sampleName}_${spike_info}_STAR.log
-                if [[ $quantMethod == 'featureCounts' ]]; then
-                    run_star_alignment $spkStarIndex $r1 $r2 $outPrefix 1 "GeneCounts" "" $logName
-                elif [[ $quantMethod == 'Salmon' ]]; then
-                    run_star_alignment $spkStarIndex $r1 $r2 $outPrefix 20 "TranscriptomeSAM GeneCounts" "--quantTranscriptomeSAMoutput BanSingleEnd --alignSJDBoverhangMin 1 --alignSJoverhangMin 8 --outSAMattributes NH HI AS NM MD" $logName
-                else
-                    exit 1
-                fi
-                echo -e "Finish alignment for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-            done
-        fi
     fi
+    for r1 in `ls ${trimDir}/*_1.fq.gz`;do
+        r2=${r1/R1_val_1.fq.gz/R2_val_2.fq.gz}
+        sampleName=$(basename ${r1%_R1_val_1.fq.gz})
+        outPrefix=${map2SpkDir}/${sampleName}_${spike_info}_
+        logName=${map2SpkLogDir}/${sampleName}_${spike_info}_STAR.log
+        if [[ ! -s "${outPrefix}Aligned.sortedByCoord.out.bam" ]]; then
+            if [[ $quantMethod == 'featureCounts' ]]; then
+                run_star_alignment $spkStarIndex $r1 $r2 $outPrefix 1 "GeneCounts" "" $logName
+            elif [[ $quantMethod == 'Salmon' ]]; then
+                run_star_alignment $spkStarIndex $r1 $r2 $outPrefix 20 "TranscriptomeSAM GeneCounts" "--quantTranscriptomeSAMoutput BanSingleEnd --alignSJDBoverhangMin 1 --alignSJoverhangMin 8 --outSAMattributes NH HI AS NM MD" $logName
+            else
+                exit 1
+            fi
+        fi
+        echo -e "Finish alignment for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+    done
 fi
 
 # DO NOT REMOVE RUP FOR RNA-SEQ
@@ -361,58 +362,64 @@ REMOVE_DUP="false"
 if [[ ! -d $filterExpBamDir ]];then
     mkdir -p $filterExpBamDir
     mkdir -p $markDupLogDir
-    if [[ ! `ls ${filterExpBamDir}/*_${exp_info}.markdup.metrics 2> /dev/null` ]]; then
-        echo -e "\n***************************\nMarking duplicate for experimental at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-        ls ${map2ExpDir}/*_${exp_info}_Aligned.sortedByCoord.out.bam | while read bam; do
-
-            # do not rmdup but mark them: https://nf-co.re/rnaseq/3.2/docs/output
-            # we do not want the secondary and supplementary reads to be duplicate marked as well as the primary reads, so we do not get queryname sorted file
-            # Mark duplicate at genome level (for Aligned.sortedByCoord.out.bam) but not at transcriptome level (for Aligned.toTranscriptome.out.bam): https://groups.google.com/g/rna-star/c/fTLo7vkJhWg
-            sampleName=$(basename ${bam%_${exp_info}_Aligned.sortedByCoord.out.bam})
-            markDupBam=${filterExpBamDir}/${sampleName}_${exp_info}.markdup.bam
-            markDupMetric=${filterExpBamDir}/${sampleName}_${exp_info}.markdup.metrics
-
-            $picard MarkDuplicates \
-                --ASSUME_SORT_ORDER coordinate \
-                --VALIDATION_STRINGENCY LENIENT \
-                --REMOVE_DUPLICATES $REMOVE_DUP \
-                --INPUT $bam \
-                --OUTPUT $markDupBam \
-                --METRICS_FILE $markDupMetric &> ${markDupLogDir}/${sampleName}_${exp_info}_markdup.log
-
-            filteredGenomeBam=${filterExpBamDir}/${sampleName}_${exp_info}.markdup.paired.bam
-            $samtools view -@ 48 -bS -f 2 -o $filteredGenomeBam $markDupBam
-            $samtools index -@ 48 $filteredGenomeBam
-            bamGenomeStat=${filterExpBamDir}/${sampleName}_${exp_info}.genome.flagstat
-            $samtools flagstat -@ 48 $filteredGenomeBam > $bamGenomeStat
-
-            if [[ $quantMethod == 'featureCounts' ]]; then
-                filteredBam=$filteredGenomeBam
-            # do not sort by coordinates for transcriptome
-            elif [[ $quantMethod == 'Salmon' ]]; then
-                transcriptomeBam=${map2ExpDir}/${sampleName}_${exp_info}_Aligned.toTranscriptome.out.bam
-                filteredBam=${filterExpBamDir}/${sampleName}_${exp_info}_transcriptome.paired.bam
-                $samtools view -@ 48 -bS -f 2 -o $filteredBam $transcriptomeBam
-                bamTranscriptomeStat=${filterExpBamDir}/${sampleName}_${exp_info}.transcriptome.flagstat
-                $samtools flagstat -@ 48 $filteredBam > $bamTranscriptomeStat
-            else
-                exit 1
-            fi
-            echo -e "Finish MarkDuplicates, filter singletons and get statistics(flagstat) of $(basename ${filteredBam}) for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-        done
-        $multiqc -f -n exp_alignment_multiqc_${runInfo} -o $filterExpBamDir -x "*STARpass1" $filterExpBamDir $map2ExpDir
-    fi
 fi
+
+echo -e "\n***************************\nMarking duplicate for experimental at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+ls ${map2ExpDir}/*_${exp_info}_Aligned.sortedByCoord.out.bam | while read bam; do
+
+    # do not rmdup but mark them: https://nf-co.re/rnaseq/3.2/docs/output
+    # we do not want the secondary and supplementary reads to be duplicate marked as well as the primary reads, so we do not get queryname sorted file
+    # Mark duplicate at genome level (for Aligned.sortedByCoord.out.bam) but not at transcriptome level (for Aligned.toTranscriptome.out.bam): https://groups.google.com/g/rna-star/c/fTLo7vkJhWg
+    sampleName=$(basename ${bam%_${exp_info}_Aligned.sortedByCoord.out.bam})
+    markDupBam=${filterExpBamDir}/${sampleName}_${exp_info}.markdup.bam
+    markDupMetric=${filterExpBamDir}/${sampleName}_${exp_info}.markdup.metrics
+
+    if [[ ! -s $markDupMetric ]]; then
+        $picard MarkDuplicates \
+            --ASSUME_SORT_ORDER coordinate \
+            --VALIDATION_STRINGENCY LENIENT \
+            --REMOVE_DUPLICATES $REMOVE_DUP \
+            --INPUT $bam \
+            --OUTPUT $markDupBam \
+            --METRICS_FILE $markDupMetric &> ${markDupLogDir}/${sampleName}_${exp_info}_markdup.log
+
+        filteredGenomeBam=${filterExpBamDir}/${sampleName}_${exp_info}.markdup.paired.bam
+        $samtools view -@ 48 -bS -f 2 -o $filteredGenomeBam $markDupBam
+        $samtools index -@ 48 $filteredGenomeBam
+        bamGenomeStat=${filterExpBamDir}/${sampleName}_${exp_info}.genome.flagstat
+        $samtools flagstat -@ 48 $filteredGenomeBam > $bamGenomeStat
+
+        if [[ $quantMethod == 'featureCounts' ]]; then
+            filteredBam=$filteredGenomeBam
+        # do not sort by coordinates for transcriptome
+        elif [[ $quantMethod == 'Salmon' ]]; then
+            transcriptomeBam=${map2ExpDir}/${sampleName}_${exp_info}_Aligned.toTranscriptome.out.bam
+            filteredBam=${filterExpBamDir}/${sampleName}_${exp_info}_transcriptome.paired.bam
+            $samtools view -@ 48 -bS -f 2 -o $filteredBam $transcriptomeBam
+            bamTranscriptomeStat=${filterExpBamDir}/${sampleName}_${exp_info}.transcriptome.flagstat
+            $samtools flagstat -@ 48 $filteredBam > $bamTranscriptomeStat
+        else
+            exit 1
+        fi
+    fi
+    echo -e "Finish MarkDuplicates, filter singletons and get statistics(flagstat) of $(basename ${filteredBam}) for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+done
+# summary
+$multiqc -f -n exp_alignment_multiqc_${runInfo} -o $filterExpBamDir -x "*STARpass1" $filterExpBamDir $map2ExpDir
+
+
 # spikeIn for genome
 if [[ $spikeIn == 'Y' ]];then
-    mkdir -p $filterSpkBamDir
-    if [[ ! `ls ${filterSpkBamDir}/*_${spike_info}.markdup.metrics 2> /dev/null` ]]; then
-        echo -e "\n***************************\nMarking duplicate for spike-in at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-        ls ${map2SpkDir}/*_${spike_info}_Aligned.sortedByCoord.out.bam | while read bam; do
-            sampleName=$(basename ${bam%_${spike_info}_Aligned.sortedByCoord.out.bam})
-            markDupBam=${filterSpkBamDir}/${sampleName}_${spike_info}.markdup.bam
-            markDupMetric=${filterSpkBamDir}/${sampleName}_${spike_info}.markdup.metrics
+    if [[ ! -d $filterSpkBamDir ]];then
+        mkdir -p $filterSpkBamDir
+    fi
+    echo -e "\n***************************\nMarking duplicate for spike-in at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+    ls ${map2SpkDir}/*_${spike_info}_Aligned.sortedByCoord.out.bam | while read bam; do
+        sampleName=$(basename ${bam%_${spike_info}_Aligned.sortedByCoord.out.bam})
+        markDupBam=${filterSpkBamDir}/${sampleName}_${spike_info}.markdup.bam
+        markDupMetric=${filterSpkBamDir}/${sampleName}_${spike_info}.markdup.metrics
 
+        if [[ ! -s $markDupMetric ]]; then
             $picard MarkDuplicates \
                 --ASSUME_SORT_ORDER coordinate \
                 --VALIDATION_STRINGENCY LENIENT \
@@ -427,10 +434,11 @@ if [[ $spikeIn == 'Y' ]];then
             $samtools index -@ 48 $filteredGenomeBam
             bamGenomeStat=${filterSpkBamDir}/${sampleName}_${spike_info}.genome.flagstat
             $samtools flagstat -@ 48 $filteredGenomeBam > $bamGenomeStat
-            echo -e "Finish MarkDuplicates, filter singletons and get statistics(flagstat) of $(basename ${filteredGenomeBam}) for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-        done
-        $multiqc -f -n spk_alignment_multiqc_${runInfo} -o $filterSpkBamDir -x "*STARpass1" $filterSpkBamDir $map2SpkDir
-    fi
+        fi
+        echo -e "Finish MarkDuplicates, filter singletons and get statistics(flagstat) of $(basename ${filteredGenomeBam}) for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+    done
+    # summary
+    $multiqc -f -n spk_alignment_multiqc_${runInfo} -o $filterSpkBamDir -x "*STARpass1" $filterSpkBamDir $map2SpkDir
 fi
 
 # Step3: calculate spike-in scale factor
@@ -468,95 +476,99 @@ if [[ $bw == 'Y' ]];then
         if [[ ! -d $spkScaledBwDir ]];then
             mkdir -p $spkScaledBwDir
             mkdir -p $spkScaledBwLogDir
-            echo -e "\n***************************\nGetting spikein normalized track at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-            cat ${logDir}/alignment_summary.txt | sed '1d' | while read line; do
-                arr=($line)
-                sampleName=${arr[0]}
-                # if use unique: scaleFactor=${arr[11]}
-                scaleFactor=${arr[10]}
-                bam=${filterExpBamDir}/${sampleName}_${exp_info}.markdup.paired.bam
-                if [[ ! -s "${spkScaledBwDir}/${sampleName}_ds.bw" ]]; then
-                    echo "Generating file: ${spkScaledBwDir}/${sampleName}_ds.bw"
-                    $bamCoverage --bam $bam --skipNonCoveredRegions --binSize 1 --numberOfProcessors 48 --outFileName ${spkScaledBwDir}/${sampleName}_ds.bw --scaleFactor $scaleFactor --normalizeUsing None &> ${spkScaledBwLogDir}/${sampleName}_ds.log
-                fi
-                if [[ ! -s "${spkScaledBwDir}/${sampleName}_fwd.bw" ]]; then
-                    echo "Generating file: ${spkScaledBwDir}/${sampleName}_fwd.bw"
-                    $bamCoverage --bam $bam --skipNonCoveredRegions --filterRNAstrand forward --binSize 1 --numberOfProcessors 48 --outFileName ${spkScaledBwDir}/${sampleName}_fwd.bw --scaleFactor $scaleFactor --normalizeUsing None &> ${spkScaledBwLogDir}/${sampleName}_fwd.log
-                fi
-                if [[ ! -s "${spkScaledBwDir}/${sampleName}_rev.bw" ]]; then
-                    echo "Generating file: ${spkScaledBwDir}/${sampleName}_rev.bw"
-                    $bamCoverage --bam $bam --skipNonCoveredRegions --filterRNAstrand reverse --binSize 1 --numberOfProcessors 48 --outFileName ${spkScaledBwDir}/${sampleName}_rev.bw --scaleFactor $scaleFactor --normalizeUsing None &> ${spkScaledBwLogDir}/${sampleName}_rev.log
-                fi
-                echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-            done
         fi
+        echo -e "\n***************************\nGetting spikein normalized track at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+        cat ${logDir}/alignment_summary_${runInfo}.txt | sed '1d' | while read line; do
+            arr=($line)
+            sampleName=${arr[0]}
+            # if use unique: scaleFactor=${arr[11]}
+            scaleFactor=${arr[10]}
+            bam=${filterExpBamDir}/${sampleName}_${exp_info}.markdup.paired.bam
+            if [[ ! -s "${spkScaledBwDir}/${sampleName}_ds.bw" ]]; then
+                echo "Generating file: ${spkScaledBwDir}/${sampleName}_ds.bw"
+                $bamCoverage --bam $bam --skipNonCoveredRegions --binSize 1 --numberOfProcessors 48 --outFileName ${spkScaledBwDir}/${sampleName}_ds.bw --scaleFactor $scaleFactor --normalizeUsing None &> ${spkScaledBwLogDir}/${sampleName}_ds.log
+            fi
+            if [[ ! -s "${spkScaledBwDir}/${sampleName}_fwd.bw" ]]; then
+                echo "Generating file: ${spkScaledBwDir}/${sampleName}_fwd.bw"
+                $bamCoverage --bam $bam --skipNonCoveredRegions --filterRNAstrand forward --binSize 1 --numberOfProcessors 48 --outFileName ${spkScaledBwDir}/${sampleName}_fwd.bw --scaleFactor $scaleFactor --normalizeUsing None &> ${spkScaledBwLogDir}/${sampleName}_fwd.log
+            fi
+            if [[ ! -s "${spkScaledBwDir}/${sampleName}_rev.bw" ]]; then
+                echo "Generating file: ${spkScaledBwDir}/${sampleName}_rev.bw"
+                $bamCoverage --bam $bam --skipNonCoveredRegions --filterRNAstrand reverse --binSize 1 --numberOfProcessors 48 --outFileName ${spkScaledBwDir}/${sampleName}_rev.bw --scaleFactor $scaleFactor --normalizeUsing None &> ${spkScaledBwLogDir}/${sampleName}_rev.log
+            fi
+            echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+        done
     else
         if [[ ! -d $cpmScaledBwDir ]]; then
             mkdir -p $cpmScaledBwDir
             mkdir -p $cpmScaledBwLogDir
-            echo -e "\n***************************\nGetting CPM normalized track at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-            ls ${filterExpBamDir}/*_${exp_info}.markdup.paired.bam | while read sample; do
-                sampleName=$(basename ${sample%_${exp_info}.markdup.paired.bam})
-                if [[ ! -s "${cpmScaledBwDir}/${sampleName}_ds.bw" ]]; then
-                    echo "Generating file: ${cpmScaledBwDir}/${sampleName}_ds.bw"
-                    $bamCoverage --bam $sample --skipNonCoveredRegions --binSize 1 --numberOfProcessors 48 --outFileName ${cpmScaledBwDir}/${sampleName}_ds.bw --scaleFactor 1 --normalizeUsing CPM &> ${cpmScaledBwLogDir}/${sampleName}_ds.log
-                fi
-                if [[ ! -s "${cpmScaledBwDir}/${sampleName}_fwd.bw" ]]; then
-                    echo "Generating file: ${cpmScaledBwDir}/${sampleName}_fwd.bw"
-                    $bamCoverage --bam $sample --skipNonCoveredRegions --filterRNAstrand forward --binSize 1 --numberOfProcessors 48 --outFileName ${cpmScaledBwDir}/${sampleName}_fwd.bw --scaleFactor 1 --normalizeUsing CPM &> ${cpmScaledBwLogDir}/${sampleName}_fwd.log
-                fi
-                if [[ ! -s "${cpmScaledBwDir}/${sampleName}_rev.bw" ]]; then
-                    echo "Generating file: ${cpmScaledBwDir}/${sampleName}_rev.bw"
-                    $bamCoverage --bam $sample --skipNonCoveredRegions --filterRNAstrand reverse --binSize 1 --numberOfProcessors 48 --outFileName ${cpmScaledBwDir}/${sampleName}_rev.bw --scaleFactor 1 --normalizeUsing CPM &> ${cpmScaledBwLogDir}/${sampleName}_rev.log
-                fi
-                echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-            done
         fi
+        echo -e "\n***************************\nGetting CPM normalized track at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+        ls ${filterExpBamDir}/*_${exp_info}.markdup.paired.bam | while read sample; do
+            sampleName=$(basename ${sample%_${exp_info}.markdup.paired.bam})
+            if [[ ! -s "${cpmScaledBwDir}/${sampleName}_ds.bw" ]]; then
+                echo "Generating file: ${cpmScaledBwDir}/${sampleName}_ds.bw"
+                $bamCoverage --bam $sample --skipNonCoveredRegions --binSize 1 --numberOfProcessors 48 --outFileName ${cpmScaledBwDir}/${sampleName}_ds.bw --scaleFactor 1 --normalizeUsing CPM &> ${cpmScaledBwLogDir}/${sampleName}_ds.log
+            fi
+            if [[ ! -s "${cpmScaledBwDir}/${sampleName}_fwd.bw" ]]; then
+                echo "Generating file: ${cpmScaledBwDir}/${sampleName}_fwd.bw"
+                $bamCoverage --bam $sample --skipNonCoveredRegions --filterRNAstrand forward --binSize 1 --numberOfProcessors 48 --outFileName ${cpmScaledBwDir}/${sampleName}_fwd.bw --scaleFactor 1 --normalizeUsing CPM &> ${cpmScaledBwLogDir}/${sampleName}_fwd.log
+            fi
+            if [[ ! -s "${cpmScaledBwDir}/${sampleName}_rev.bw" ]]; then
+                echo "Generating file: ${cpmScaledBwDir}/${sampleName}_rev.bw"
+                $bamCoverage --bam $sample --skipNonCoveredRegions --filterRNAstrand reverse --binSize 1 --numberOfProcessors 48 --outFileName ${cpmScaledBwDir}/${sampleName}_rev.bw --scaleFactor 1 --normalizeUsing CPM &> ${cpmScaledBwLogDir}/${sampleName}_rev.log
+            fi
+            echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+        done
     fi
 fi
 
 # Step5: Quantification
 # # since featureCounts v2.0.2, both -p and --countReadPairs need to be used to explicitly specify count read pairs (fragments) instead of reads
 # -s 2 to set reversely stranded library
-if [[ ! -d $quantificationDir ]];then
+if [[ ! -d $quantificationDir ]]; then
     mkdir -p $quantificationDir
-    echo -e "\n***************************\nDoing quantification with ${quantMethod} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-    if [[ $quantMethod == 'featureCounts' ]]; then
+fi
+echo -e "\n***************************\nDoing quantification with ${quantMethod} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+if [[ $quantMethod == 'featureCounts' ]]; then
+    if [[ ! -d $featureCountsLogDir ]]; then
         mkdir -p $featureCountsLogDir
-        ls ${filterExpBamDir}/*_${exp_info}.markdup.paired.bam | while read bam; do
-		    sampleName=$(basename ${bam%_${exp_info}.markdup.paired.bam})
-            if [[ ! -s "${quantificationDir}/${sampleName}_featureCounts.counts" ]]; then
-                $featureCounts \
-                -T 48 \
-                -a $expAnno \
-                -F GTF \
-                -t exon \
-                -g gene_id \
-                -s 2 \
-                -o ${quantificationDir}/${sampleName}_featureCounts.counts \
-                -p --countReadPairs \
-                ${bam} &> ${featureCountsLogDir}/${sampleName}_featureCounts.log
-            fi
-            echo -e "Finish quantification for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-	    done
-    elif [[ $quantMethod == 'Salmon' ]]; then
-        mkdir -p $salmonLogDir
-        ls ${filterExpBamDir}/*_${exp_info}_transcriptome.paired.bam | while read bam; do
-            sampleName=$(basename ${bam%_${exp_info}_transcriptome.paired.bam})
-            if [[ ! -d "${quantificationDir}/${sampleName}_salmon_quant" ]]; then
-                $salmon quant \
-                -t $expFa \
-                --libType A \
-                -a $bam \
-                --threads 48 \
-                --gcBias --seqBias \
-                -o ${quantificationDir}/${sampleName}_salmon_quant &> ${salmonLogDir}/${sampleName}_salmon.log
-            fi
-            echo -e "Finish quantification for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-        done
-    else
-        exit 1
     fi
+    ls ${filterExpBamDir}/*_${exp_info}.markdup.paired.bam | while read bam; do
+        sampleName=$(basename ${bam%_${exp_info}.markdup.paired.bam})
+        if [[ ! -s "${quantificationDir}/${sampleName}_featureCounts.counts" ]]; then
+            $featureCounts \
+            -T 48 \
+            -a $expAnno \
+            -F GTF \
+            -t exon \
+            -g gene_id \
+            -s 2 \
+            -o ${quantificationDir}/${sampleName}_featureCounts.counts \
+            -p --countReadPairs \
+            ${bam} &> ${featureCountsLogDir}/${sampleName}_featureCounts.log
+        fi
+        echo -e "Finish quantification for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+    done
+elif [[ $quantMethod == 'Salmon' ]]; then
+    if [[ ! -d $salmonLogDir ]]; then
+        mkdir -p $salmonLogDir
+    fi
+    ls ${filterExpBamDir}/*_${exp_info}_transcriptome.paired.bam | while read bam; do
+        sampleName=$(basename ${bam%_${exp_info}_transcriptome.paired.bam})
+        if [[ ! -d "${quantificationDir}/${sampleName}_salmon_quant" ]]; then
+            $salmon quant \
+            -t $expFa \
+            --libType A \
+            -a $bam \
+            --threads 48 \
+            --gcBias --seqBias \
+            -o ${quantificationDir}/${sampleName}_salmon_quant &> ${salmonLogDir}/${sampleName}_salmon.log
+        fi
+        echo -e "Finish quantification for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+    done
+else
+    exit 1
 fi
 
 echo -e "\n***************************\nFinish RNA-seq processing at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"

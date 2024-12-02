@@ -396,7 +396,7 @@ for r1 in `ls ${trimDir}/*_trimmed_R1.fq.gz`; do
     sampleName=$(basename ${r1%_trimmed_R1.fq.gz})
     outPrefix=${trimFastpDir}/${sampleName}
     logName=${trimFastpLogDir}/${sampleName}
-    if [ ! -s ${trimFastpDir}/*_fastp_R2.fq.gz ]; then
+    if [ ! -s ${trimFastpDir}/${sampleName}_fastp_R2.fq.gz ]; then
         if [[ $libType == 'qPRO' || $libType == 'PROcap' ]]; then
             # always 6nt duplex UMI
             fastp_label_umi $r1 $r2 $outPrefix $ADAPTOR_R1 $ADAPTOR_R2 "per_read" $logName ""
