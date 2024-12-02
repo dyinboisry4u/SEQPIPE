@@ -19,7 +19,7 @@ usage() {
     echo "Usage: $0 <rawDataRawDir> <sampleInfo> <runInfo> <spikeIn> <expRef> <quantMethod> <bw>"
     echo "  rawDataRawDir: raw data directory"
     echo "  sampleInfo: space separated sample information file"
-    echo "  runInfo: a description for the data, e.g., 'RNAseq_241120' "
+    echo "  runInfo: a description for the run, e.g., 'RNAseq_241120' "
     echo "  spikeIn: if spike-in RNA-Seq, 'Y' or 'N' "
     echo "  expRef: experiment genome reference, 'hg38', 'mm10' "
     echo "  quantMethod: quantification method, 'featureCounts' or 'Salmon' "

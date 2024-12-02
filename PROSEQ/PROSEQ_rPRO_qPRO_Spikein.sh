@@ -22,12 +22,13 @@ usage() {
     echo "Usage: $0 <rawDataRawDir> <sampleInfo> <runInfo> <spikeIn> <expRef> <libType> <umiLen> <identifyTRE>"
     echo "  rawDataRawDir: raw data directory"
     echo "  sampleInfo: space separated sample information file"
-    echo "  runInfo: run information, such as date, owner, etc."
+    echo "  runInfo: a description for the run, e.g., 'PROseq_241130' "
     echo "  spikeIn: if spike-in PRO-seq library, 'Y' or 'N' "
-    echo "  expRef: experiment genome reference, 'hg38', 'mm10' "
-    echo "  libType: PRO-seq library type, 'qPRO' or 'rPRO' "
+    echo "  expRef: experiment genome reference, 'hg38', 'hg19', 'mm10' "
+    echo "  libType: Library type, 'qPRO', 'rPRO' or 'PROcap' "
     echo "  umiLen: the length (n nt) of UMI, between 6 and 12"
     echo "  identifyTRE: peak calling method, 'dREG', 'PINTS', 'HOMER', 'all' or 'none' "
+    echo "  noNormBw: if get no normalized bigwig (only for low sequencing depth sample to merge), 'Y' or 'N' "
 
     exit 1
 }
@@ -41,9 +42,10 @@ expRef=$5
 libType=$6
 umiLen=$7
 identifyTRE=$8
+noNormBw=$9
 
 # check args
-if [ $# -ne 8 ]; then
+if [ $# -ne 9 ]; then
     echo "Error: Invalid number of arguments!"
     usage
 fi
@@ -78,8 +80,8 @@ if [[ "$expRef" != "hg38" && "$expRef" != "hg19" && "$expRef" != "mm10" ]]; then
     echo "Error: Invalid expRef value! Must be 'hg38', 'hg19', or 'mm10'."
     usage
 fi
-if [[ "$libType" != "rPRO" && "$libType" != "qPRO" ]]; then
-    echo "Error: Invalid libType value! Must be 'rPRO' or 'qPRO'."
+if [[ "$libType" != "rPRO" && "$libType" != "qPRO" && "$libType" != "PROcap" ]]; then
+    echo "Error: Invalid libType value! Must be 'rPRO', 'qPRO' or 'PROcap'."
     usage
 fi
 if [[ ! ($umiLen -ge 6 && $umiLen -le 12) ]]; then
@@ -91,7 +93,11 @@ if [[ ! " ${valid_methods[@]} " =~ " $identifyTRE " ]]; then
     echo "Error: Invalid identifyTRE value! Must be 'dREG', 'PINTS', 'HOMER', 'all' or 'none'."
     usage
 fi
-echo -e "PRO-seq parameters: \nrawDataRawDir: $rawDataRawDir\nsampleInfo: $sampleInfo\nrunInfo: $runInfo\nspikeIn: $spikeIn\nexpRef: $expRef\nlibType: $libType\numiLen: $umiLen\nidentifyTRE: $identifyTRE"
+if [[ "$noNormBw" != "Y" && "$noNormBw" != "N" ]]; then
+    echo "Error: Invalid noNormBw value! Must be 'Y' or 'N'."
+    usage
+fi
+echo -e "PRO-seq parameters: \nrawDataRawDir: $rawDataRawDir\nsampleInfo: $sampleInfo\nrunInfo: $runInfo\nspikeIn: $spikeIn\nexpRef: $expRef\nlibType: $libType\numiLen: $umiLen\nidentifyTRE: $identifyTRE\nnoNormBw: $noNormBw"
 
 # library struceture (DNA): 
 # qPRO: { 5' - [ P7 -- i7 (6 base variable) -- GTGACTGGAGTT -- CCTTGGCACCCGAGAATTCCA -- UMI (6 nt) -- C ] -- [insert] -- [ T -- UMI (6nt) -- GATCGTCGGACTGTAGAACTCTGAAC -- i5 (8 base variable) -- P5 ] -- 3' }
@@ -290,10 +296,12 @@ fi
 if [[ ! -d $trimDir ]]; then
     mkdir -p $trimDir
 	mkdir -p $trimLogDir
-    echo -e "\n***************************\nStart run cutadapt at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-	for r1 in `ls ${rawDataDir}/*_R1.fq.gz`; do
-		r2=${r1/R1.fq.gz/R2.fq.gz}
-		sampleName=$(basename ${r1%_R1.fq.gz})
+fi
+echo -e "\n***************************\nStart run cutadapt at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+for r1 in `ls ${rawDataDir}/*_R1.fq.gz`; do
+    r2=${r1/R1.fq.gz/R2.fq.gz}
+    sampleName=$(basename ${r1%_R1.fq.gz})
+    if [ ! -s ${trimDir}/${sampleName}_trimmed_R2.fq.gz ]; then
         $cutadapt \
             -a $ADAPTOR_R1 -a "TGGAATTCTCGG" \
             -A $ADAPTOR_R2 -A "GATCGTCGGACT" \
@@ -309,31 +317,34 @@ if [[ ! -d $trimDir ]]; then
             --nextseq-trim=20 \
             -o ${trimDir}/${sampleName}_trimmed_R1.fq.gz -p ${trimDir}/${sampleName}_trimmed_R2.fq.gz \
             $r1 $r2 &> ${trimLogDir}/${sampleName}_cutadapt.log
-        echo -e "Finish cutadapt trim for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-	done
-    echo -e "\nFinish run cutadapt for all samples!"
-fi
+    fi
+    echo -e "Finish cutadapt trim for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+done
+echo -e "\nFinish run cutadapt for all samples!"
 
 
 # QC 1: estimate insert size (FLASH)
 
-if [[ ! -d $insertLenDir ]]; then
-    mkdir -p $insertLenDir
+if [[ $libType != 'PROcap' ]]; then
+    if [[ ! -d $insertLenDir ]]; then
+        mkdir -p $insertLenDir
+    fi
     echo -e "\n***************************\nStart estimate insert size at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-    if [ ! -s ${insertLenDir}/*.hist ]; then
-        for r1 in `ls ${trimDir}/*_trimmed_R1.fq.gz`; do
-            r2=${r1/R1.fq.gz/R2.fq.gz}
-            sampleName=$(basename ${r1%_trimmed_R1.fq.gz})
+    for r1 in `ls ${trimDir}/*_trimmed_R1.fq.gz`; do
+        r2=${r1/R1.fq.gz/R2.fq.gz}
+        sampleName=$(basename ${r1%_trimmed_R1.fq.gz})
+        if [ ! -s ${insertLenDir}/${sampleName}.hist ]; then
             # eastimate insert size by flash
             $flash --quiet --thread 36 --max-overlap 150 --compress-prog=pigz --compress-prog-args='--processes 36' --suffix=gz -d $insertLenDir -o $sampleName $r1 $r2
-            echo -e "Finish estimate insert for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-        done
-    fi
+        fi
+        echo -e "Finish estimate insert for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+    done
     # plot insert size distribution and degradation ratio
     echo -e "\nFinish for all samples, remove intermediate files and plot insert size distributions...\n"
     ls ${insertLenDir}/* | grep 'fastq.gz$' | while read file; do unlink $file; done
     $Rscript $get_degradation_ratio $insertLenDir $runInfo $libType $umiLen
 fi
+
 
 # Step1.3: UMI labeling and clipping (fastp)
 
@@ -378,26 +389,27 @@ fastp_label_umi() {
 if [[ ! -d $trimFastpDir ]]; then
     mkdir -p ${trimFastpDir}
     mkdir -p ${trimFastpLogDir}
-    echo -e "\n***************************\nLabeling UMI at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-    if [ ! -s ${trimFastpDir}/*_fastp_R1.fq.gz ]; then
-        for r1 in `ls ${trimDir}/*_trimmed_R1.fq.gz`; do
-            r2=${r1/R1.fq.gz/R2.fq.gz}
-            sampleName=$(basename ${r1%_trimmed_R1.fq.gz})
-            outPrefix=${trimFastpDir}/${sampleName}
-            logName=${trimFastpLogDir}/${sampleName}
-            if [[ $libType == 'qPRO' ]]; then
-                # always 6nt duplex UMI
-                fastp_label_umi $r1 $r2 $outPrefix $ADAPTOR_R1 $ADAPTOR_R2 "per_read" $logName ""
-            elif [[ $libType == 'rPRO' ]]; then
-                # clip R1 reverse complementary R2 UMI+G (n+1 nt)
-                fastp_label_umi $r1 $r2 $outPrefix $ADAPTOR_R1 $ADAPTOR_R2 "read2" $logName "--trim_tail1=$(echo "${umiLen}+1" | bc -l) --trim_tail2=0"
-            else
-                exit 1
-            fi
-            echo -e "Finish label UMI for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-        done
-    fi
 fi
+echo -e "\n***************************\nLabeling UMI at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+for r1 in `ls ${trimDir}/*_trimmed_R1.fq.gz`; do
+    r2=${r1/R1.fq.gz/R2.fq.gz}
+    sampleName=$(basename ${r1%_trimmed_R1.fq.gz})
+    outPrefix=${trimFastpDir}/${sampleName}
+    logName=${trimFastpLogDir}/${sampleName}
+    if [ ! -s ${trimFastpDir}/*_fastp_R2.fq.gz ]; then
+        if [[ $libType == 'qPRO' || $libType == 'PROcap' ]]; then
+            # always 6nt duplex UMI
+            fastp_label_umi $r1 $r2 $outPrefix $ADAPTOR_R1 $ADAPTOR_R2 "per_read" $logName ""
+        elif [[ $libType == 'rPRO' ]]; then
+            # clip R1 reverse complementary R2 UMI+G (n+1 nt)
+            fastp_label_umi $r1 $r2 $outPrefix $ADAPTOR_R1 $ADAPTOR_R2 "read2" $logName "--trim_tail1=$(echo "${umiLen}+1" | bc -l) --trim_tail2=0"
+        else
+            exit 1
+        fi
+    fi
+    echo -e "Finish label UMI for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+done
+
 
 # Step1.4: remove rRNA reads
 
@@ -425,18 +437,18 @@ run_bowtie2_alignment() {
 if [[ ! -d $rmrRNADir ]]; then
     mkdir -p ${rmrRNADir}
     mkdir -p ${rmrRNALogDir}
-    echo -e "\n***************************\nRemoving rRNA reads at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-    for r1 in `ls ${trimFastpDir}/*_fastp_R1.fq.gz`; do
-        r2=${r1/fastp_R1.fq.gz/fastp_R2.fq.gz}
-        sampleName=$(basename ${r1/_fastp_R1.fq.gz/})
-        logName=${rmrRNALogDir}/${sampleName}_rmrRNA
-        if [ ! -s ${rmrRNALogDir}/${sampleName}_rmrRNA_bowtie2.log ]; then
-            # we are interested primarily in quickly identifying and removing any reads that have a valid alignment to the serial alignment genome (-k 1)
-            run_bowtie2_alignment $rDNABowtie2Index $r1 $r2 "--fast-local -k 1 --un-conc-gz ${rmrRNADir}/${sampleName}_rmrRNA_R%.fq.gz" $logName > /dev/null
-        fi
-        echo -e "Finish remove rRNA reads for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-    done
 fi
+echo -e "\n***************************\nRemoving rRNA reads at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+for r1 in `ls ${trimFastpDir}/*_fastp_R1.fq.gz`; do
+    r2=${r1/fastp_R1.fq.gz/fastp_R2.fq.gz}
+    sampleName=$(basename ${r1/_fastp_R1.fq.gz/})
+    logName=${rmrRNALogDir}/${sampleName}_rmrRNA
+    if [ ! -s ${rmrRNALogDir}/${sampleName}_rmrRNA_bowtie2.log ]; then
+        # we are interested primarily in quickly identifying and removing any reads that have a valid alignment to the serial alignment genome (-k 1)
+        run_bowtie2_alignment $rDNABowtie2Index $r1 $r2 "--fast-local -k 1 --un-conc-gz ${rmrRNADir}/${sampleName}_rmrRNA_R%.fq.gz" $logName > /dev/null
+    fi
+    echo -e "Finish remove rRNA reads for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+done
 
 # Step1.5: clean data fastqc
 
@@ -459,31 +471,32 @@ echo -e "\n***************************\nAligning to experimental genome at $(dat
 if [[ ! -d $map2ExpDir ]]; then
     mkdir -p $map2ExpDir
 	mkdir -p $map2ExpLogDir
-    if [[ ! `ls ${map2ExpDir}/*_${exp_info}.bam 2> /dev/null` ]]; then
-        for r1 in `ls ${rmrRNADir}/*_rmrRNA_R1.fq.gz`;do
-            r2=${r1/R1.fq.gz/R2.fq.gz}
-            sampleName=$(basename ${r1%_rmrRNA_R1.fq.gz})
-            logName=${map2ExpLogDir}/${sampleName}_${exp_info}
-            if [ ! -s ${map2ExpLogDir}/${sampleName}_${exp_info}_bowtie2.log ]; then
-                if [[ $libType == 'qPRO' ]]; then
-                    # remove fastp separator
-                    run_bowtie2_alignment $expBowtie2Index $r1 $r2 "--very-sensitive-local -X 750 -L 18 --score-min G,20,6" $logName | \
-                    $samtools view -@ 48 -Sh -q ${MAPQ} -f 2 | \
-                    sed 's/:UMI_\([A-Z]*\)_\([A-Z]*\)/:UMI_\1\2/g' | \
-                    $samtools sort -@ 48 -o ${map2ExpDir}/${sampleName}_${exp_info}.bam 2> /dev/null
-                elif [[ $libType == 'rPRO' ]]; then
-                    run_bowtie2_alignment $expBowtie2Index $r1 $r2 "--very-sensitive-local -X 750 -L 18 --score-min G,20,6" $logName | \
-                    $samtools view -@ 48 -bS -q ${MAPQ} -f 2 | \
-                    $samtools sort -@ 48 -o ${map2ExpDir}/${sampleName}_${exp_info}.bam 2> /dev/null
-                else
-                    exit 1
-                fi
-                $samtools index -@ 48 ${map2ExpDir}/${sampleName}_${exp_info}.bam
-            fi
-            echo -e "Finish align to ${exp_info} for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-        done
-    fi
 fi
+# if [[ ! `ls ${map2ExpDir}/*_${exp_info}.bam 2> /dev/null` ]]; then
+#     echo -e ""
+# fi
+for r1 in `ls ${rmrRNADir}/*_rmrRNA_R1.fq.gz`;do
+    r2=${r1/R1.fq.gz/R2.fq.gz}
+    sampleName=$(basename ${r1%_rmrRNA_R1.fq.gz})
+    logName=${map2ExpLogDir}/${sampleName}_${exp_info}
+    if [ ! -s ${map2ExpLogDir}/${sampleName}_${exp_info}_bowtie2.log ]; then
+        if [[ $libType == 'qPRO' || $libType == 'PROcap' ]]; then
+            # remove fastp separator
+            run_bowtie2_alignment $expBowtie2Index $r1 $r2 "--very-sensitive-local -X 750 -L 18 --score-min G,20,6" $logName | \
+            $samtools view -@ 48 -Sh -q ${MAPQ} -f 2 | \
+            sed 's/:UMI_\([A-Z]*\)_\([A-Z]*\)/:UMI_\1\2/g' | \
+            $samtools sort -@ 48 -o ${map2ExpDir}/${sampleName}_${exp_info}.bam 2> /dev/null
+        elif [[ $libType == 'rPRO' ]]; then
+            run_bowtie2_alignment $expBowtie2Index $r1 $r2 "--very-sensitive-local -X 750 -L 18 --score-min G,20,6" $logName | \
+            $samtools view -@ 48 -bS -q ${MAPQ} -f 2 | \
+            $samtools sort -@ 48 -o ${map2ExpDir}/${sampleName}_${exp_info}.bam 2> /dev/null
+        else
+            exit 1
+        fi
+        $samtools index -@ 48 ${map2ExpDir}/${sampleName}_${exp_info}.bam
+    fi
+    echo -e "Finish align to ${exp_info} for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+done
 
 # Step2.2: align to spike-in
 
@@ -492,30 +505,31 @@ if [[ $spikeIn == 'Y' ]];then
     if [[ ! -d $map2SpkDir ]];then
         mkdir -p $map2SpkDir
         mkdir -p $map2SpkLogDir
-        if [[ ! `ls ${map2SpkDir}/*_${spike_info}.bam 2> /dev/null` ]]; then
-            for r1 in `ls ${rmrRNADir}/*_rmrRNA_R1.fq.gz`;do
-                r2=${r1/R1.fq.gz/R2.fq.gz}
-                sampleName=$(basename ${r1%_rmrRNA_R1.fq.gz})
-                logName=${map2SpkLogDir}/${sampleName}_${spike_info}
-                if [ ! -s ${map2SpkLogDir}/${sampleName}_${spike_info}_bowtie2.log ]; then
-                    if [[ $libType == 'qPRO' ]]; then
-                        run_bowtie2_alignment $spkBowtie2Index $r1 $r2 "--very-sensitive-local -X 750 -L 18 --score-min G,20,6" $logName | \
-                        $samtools view -@ 48 -Sh -q ${MAPQ} -f 2 | \
-                        sed 's/:UMI_\([A-Z]*\)_\([A-Z]*\)/:UMI_\1\2/g' | \
-                        $samtools sort -@ 48 -o ${map2SpkDir}/${sampleName}_${spike_info}.bam 2> /dev/null
-                    elif [[ $libType == 'rPRO' ]]; then
-                        run_bowtie2_alignment $spkBowtie2Index $r1 $r2 "--very-sensitive-local -X 750 -L 18 --score-min G,20,6" $logName | \
-                        $samtools view -@ 48 -bS -q ${MAPQ} -f 2 | \
-                        $samtools sort -@ 48 -o ${map2SpkDir}/${sampleName}_${spike_info}.bam 2> /dev/null
-                    else
-                        exit 1
-                    fi
-                    $samtools index -@ 48 ${map2SpkDir}/${sampleName}_${spike_info}.bam
-                fi
-                echo -e "Finish align to ${spike_info} for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-            done
-        fi
     fi
+    # if [[ ! `ls ${map2SpkDir}/*_${spike_info}.bam 2> /dev/null` ]]; then
+    #     echo -e ""
+    # fi
+    for r1 in `ls ${rmrRNADir}/*_rmrRNA_R1.fq.gz`;do
+        r2=${r1/R1.fq.gz/R2.fq.gz}
+        sampleName=$(basename ${r1%_rmrRNA_R1.fq.gz})
+        logName=${map2SpkLogDir}/${sampleName}_${spike_info}
+        if [ ! -s ${map2SpkLogDir}/${sampleName}_${spike_info}_bowtie2.log ]; then
+            if [[ $libType == 'qPRO' || $libType == 'PROcap' ]]; then
+                run_bowtie2_alignment $spkBowtie2Index $r1 $r2 "--very-sensitive-local -X 750 -L 18 --score-min G,20,6" $logName | \
+                $samtools view -@ 48 -Sh -q ${MAPQ} -f 2 | \
+                sed 's/:UMI_\([A-Z]*\)_\([A-Z]*\)/:UMI_\1\2/g' | \
+                $samtools sort -@ 48 -o ${map2SpkDir}/${sampleName}_${spike_info}.bam 2> /dev/null
+            elif [[ $libType == 'rPRO' ]]; then
+                run_bowtie2_alignment $spkBowtie2Index $r1 $r2 "--very-sensitive-local -X 750 -L 18 --score-min G,20,6" $logName | \
+                $samtools view -@ 48 -bS -q ${MAPQ} -f 2 | \
+                $samtools sort -@ 48 -o ${map2SpkDir}/${sampleName}_${spike_info}.bam 2> /dev/null
+            else
+                exit 1
+            fi
+            $samtools index -@ 48 ${map2SpkDir}/${sampleName}_${spike_info}.bam
+        fi
+        echo -e "Finish align to ${spike_info} for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+    done
 fi
 
 ##
@@ -528,19 +542,19 @@ echo -e "\n***************************\nDeduplicating for experimental bam at $(
 if [[ ! -d $rmdupExpDir ]]; then
     mkdir -p $rmdupExpDir
 	mkdir -p $rmdupExpLogDir
-    for bam in `ls ${map2ExpDir}/*_${exp_info}.bam`; do
-        fileName=$(basename ${bam%.bam})
-        logName=${rmdupExpLogDir}/${fileName}_umitools.log
-        rmdupBam=${rmdupExpDir}/${fileName}_rmdup.bam
-        rmdupBamStat=${rmdupExpDir}/${fileName}_rmdup.flagstat
-        if [ ! -s $rmdupBam ]; then
-            $umi_tools dedup --paired --umi-separator=":UMI_" -I $bam -S $rmdupBam &> $logName
-            $samtools index -@ 24 $rmdupBam
-            $samtools flagstat -@ 24 $rmdupBam > $rmdupBamStat
-        fi
-        echo -e "Finish deduplicate for ${fileName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-    done
 fi
+for bam in `ls ${map2ExpDir}/*_${exp_info}.bam`; do
+    fileName=$(basename ${bam%.bam})
+    logName=${rmdupExpLogDir}/${fileName}_umitools.log
+    rmdupBam=${rmdupExpDir}/${fileName}_rmdup.bam
+    rmdupBamStat=${rmdupExpDir}/${fileName}_rmdup.flagstat
+    if [ ! -s $rmdupBam ]; then
+        $umi_tools dedup --paired --umi-separator=":UMI_" -I $bam -S $rmdupBam &> $logName
+        $samtools index -@ 24 $rmdupBam
+        $samtools flagstat -@ 24 $rmdupBam > $rmdupBamStat
+    fi
+    echo -e "Finish deduplicate for ${fileName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+done
 
 # Step2.4 remove duplicates for spike-in bam
 
@@ -549,19 +563,19 @@ if [[ $spikeIn == 'Y' ]]; then
     if [[ ! -d $rmdupSpkDir ]]; then
         mkdir -p $rmdupSpkDir
         mkdir -p $rmdupSpkLogDir
-        for bam in `ls ${map2SpkDir}/*_${spike_info}.bam`; do
-            fileName=$(basename ${bam%.bam})
-            logName=${rmdupSpkLogDir}/${fileName}_umitools.log
-            rmdupBam=${rmdupSpkDir}/${fileName}_rmdup.bam
-            rmdupBamStat=${rmdupSpkDir}/${fileName}_rmdup.flagstat
-            if [ ! -s $rmdupBam ]; then
-                $umi_tools dedup --paired --umi-separator=":UMI_" -I $bam -S $rmdupBam &> $logName
-                $samtools index -@ 24 $rmdupBam
-                $samtools flagstat -@ 24 $rmdupBam > $rmdupBamStat
-            fi
-            echo -e "Finish deduplicate for ${fileName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-        done
     fi
+    for bam in `ls ${map2SpkDir}/*_${spike_info}.bam`; do
+        fileName=$(basename ${bam%.bam})
+        logName=${rmdupSpkLogDir}/${fileName}_umitools.log
+        rmdupBam=${rmdupSpkDir}/${fileName}_rmdup.bam
+        rmdupBamStat=${rmdupSpkDir}/${fileName}_rmdup.flagstat
+        if [ ! -s $rmdupBam ]; then
+            $umi_tools dedup --paired --umi-separator=":UMI_" -I $bam -S $rmdupBam &> $logName
+            $samtools index -@ 24 $rmdupBam
+            $samtools flagstat -@ 24 $rmdupBam > $rmdupBamStat
+        fi
+        echo -e "Finish deduplicate for ${fileName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+    done
 fi
 
 # Step3: calculate spike-in scale factor
@@ -636,12 +650,14 @@ if [[ $spikeIn == 'Y' ]]; then
 	if [[ ! -d $spkScaledBwDir ]]; then
 		mkdir -p $spkScaledBwDir
 		mkdir -p $spkScaledBwLogDir
-		cat ${logDir}/alignment_summary_${runInfo}.txt | sed '1d' | while read line; do
-			arr=($line)
-			sampleName=${arr[0]}
-            # if use unique: scaleFactor=${arr[14]}
-			scaleFactor=${arr[13]}
-			bam=${rmdupExpDir}/${sampleName}_${exp_info}_rmdup.bam
+    fi
+    cat ${logDir}/alignment_summary_${runInfo}.txt | sed '1d' | while read line; do
+        arr=($line)
+        sampleName=${arr[0]}
+        # if use unique: scaleFactor=${arr[14]}
+        scaleFactor=${arr[13]}
+        bam=${rmdupExpDir}/${sampleName}_${exp_info}_rmdup.bam
+        if [[ $libType != 'PROcap' ]]; then
             sb_fwd=${spkScaledBwDir}/${sampleName}_singlebase_fwd.bw; sb_rev=${spkScaledBwDir}/${sampleName}_singlebase_rev.bw; sb_rev_minus=${spkScaledBwDir}/${sampleName}_singlebase_rev_minus.bw
             fl_fwd=${spkScaledBwDir}/${sampleName}_fulllength_fwd.bw; fl_rev=${spkScaledBwDir}/${sampleName}_fulllength_rev.bw; fl_rev_minus=${spkScaledBwDir}/${sampleName}_fulllength_rev_minus.bw
             if [[ ! -s $sb_fwd || ! -s $fl_fwd ]]; then
@@ -654,21 +670,31 @@ if [[ $spikeIn == 'Y' ]]; then
                 run_bamCoverage $bam $sb_rev 99 "None" $scaleFactor "--Offset 1" ${spkScaledBwLogDir}/${sampleName}_singlebase_rev
                 run_bamCoverage $bam $fl_rev 99 "None" $scaleFactor "" ${spkScaledBwLogDir}/${sampleName}_fulllength_rev
             fi
-			if [[ ! -s $sb_rev_minus || ! -s $fl_rev_minus ]]; then
+            if [[ ! -s $sb_rev_minus || ! -s $fl_rev_minus ]]; then
                 echo "Generating file: $sb_rev_minus and $fl_rev_minus"
-        		run_bamCoverage $bam $sb_rev_minus 99 "None" "-$scaleFactor" "--Offset 1" ${spkScaledBwLogDir}/${sampleName}_singlebase_rev_minus
+                run_bamCoverage $bam $sb_rev_minus 99 "None" "-$scaleFactor" "--Offset 1" ${spkScaledBwLogDir}/${sampleName}_singlebase_rev_minus
                 run_bamCoverage $bam $fl_rev_minus 99 "None" "-$scaleFactor" "" ${spkScaledBwLogDir}/${sampleName}_fulllength_rev_minus
-			fi
-            echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-		done
-    fi
+            fi
+        else
+            sb_fwd=${spkScaledBwDir}/${sampleName}_singlebase_fwd.bw; sb_rev=${spkScaledBwDir}/${sampleName}_singlebase_rev.bw; sb_rev_minus=${spkScaledBwDir}/${sampleName}_singlebase_rev_minus.bw
+            if [[ ! -s $sb_fwd || ! -s $sb_rev || ! -s $sb_rev_minus ]]; then
+                echo "Generating file: $sb_fwd, $sb_rev and $sb_rev_minus"
+                run_bamCoverage $bam $sb_fwd 163 "None" $scaleFactor "--Offset 1" ${spkScaledBwLogDir}/${sampleName}_singlebase_fwd
+                run_bamCoverage $bam $sb_minus 147 "None" $scaleFactor "--Offset 1" ${spkScaledBwLogDir}/${sampleName}_singlebase_rev
+                run_bamCoverage $bam $sb_rev_minus 147 "None" "-$scaleFactor" "--Offset 1" ${spkScaledBwLogDir}/${sampleName}_singlebase_rev_minus
+            fi
+        fi
+        echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+    done
 else
     echo -e "\n***************************\nGetting CPM normalized track at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
 	if [[ ! -d $cpmScaledBwDir ]]; then
         mkdir -p $cpmScaledBwDir
         mkdir -p $cpmScaledBwLogDir
-        ls ${rmdupExpDir}/*_${exp_info}_rmdup.bam | while read sample; do
-            sampleName=$(basename ${sample%_${exp_info}_rmdup.bam})
+    fi
+    ls ${rmdupExpDir}/*_${exp_info}_rmdup.bam | while read sample; do
+        sampleName=$(basename ${sample%_${exp_info}_rmdup.bam})
+        if [[ $libType != 'PROcap' ]]; then
             sb_fwd=${cpmScaledBwDir}/${sampleName}_singlebase_fwd.bw; sb_rev=${cpmScaledBwDir}/${sampleName}_singlebase_rev.bw; sb_rev_minus=${cpmScaledBwDir}/${sampleName}_singlebase_rev_minus.bw
             fl_fwd=${cpmScaledBwDir}/${sampleName}_fulllength_fwd.bw; fl_rev=${cpmScaledBwDir}/${sampleName}_fulllength_rev.bw; fl_rev_minus=${cpmScaledBwDir}/${sampleName}_fulllength_rev_minus.bw
             if [[ ! -s $sb_fwd || ! -s $fl_fwd ]]; then
@@ -686,36 +712,44 @@ else
                 run_bamCoverage $sample $sb_rev_minus 99 "CPM" "-1" "--Offset 1" ${cpmScaledBwLogDir}/${sampleName}_singlebase_rev_minus
                 run_bamCoverage $sample $fl_rev_minus 99 "CPM" "-1" "" ${cpmScaledBwLogDir}/${sampleName}_fulllength_rev_minus
             fi
-            echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-        done
-    fi
+        else
+            sb_fwd=${cpmScaledBwDir}/${sampleName}_singlebase_fwd.bw; sb_rev=${cpmScaledBwDir}/${sampleName}_singlebase_rev.bw; sb_rev_minus=${cpmScaledBwDir}/${sampleName}_singlebase_rev_minus.bw
+            if [[ ! -s $sb_fwd || ! -s $sb_rev || ! -s $sb_rev_minus ]]; then
+                echo "Generating file: $sb_fwd, $sb_rev and $sb_rev_minus"
+                run_bamCoverage $sample $sb_fwd 163 "CPM" 1 "--Offset 1" ${cpmScaledBwLogDir}/${sampleName}_singlebase_fwd
+                run_bamCoverage $sample $sb_minus 147 "CPM" 1 "--Offset 1" ${cpmScaledBwLogDir}/${sampleName}_singlebase_rev
+                run_bamCoverage $sample $sb_rev_minus 147 "CPM" "-1" "--Offset 1" ${cpmScaledBwLogDir}/${sampleName}_singlebase_rev_minus
+            fi
+        fi
+        echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+    done
 fi
 
 # Step4.2: get track for dREG input
 
-if [[ $identifyTRE == 'all' || $identifyTRE == 'dREG' ]]; then
+if [[ $identifyTRE == 'all' || $identifyTRE == 'dREG' || $noNormBw == 'Y' ]]; then
     echo -e "\n***************************\nGetting no normalized track at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
     if [[ ! -d $noScaledBwDir ]]; then
     	mkdir -p $noScaledBwDir
         mkdir -p $noScaledBwLogDir
-        ls ${rmdupExpDir}/*_${exp_info}_rmdup.bam | while read sample; do
-            sampleName=$(basename ${sample%_${exp_info}_rmdup.bam})
-            sb_fwd=${noScaledBwDir}/${sampleName}_none_normalized_singlebase_fwd.bw; sb_rev_minus=${noScaledBwDir}/${sampleName}_none_normalized_singlebase_rev_minus.bw
-            if [[ ! -s $sb_fwd ]]; then
-                echo "Generating file: $sb_fwd"
-                run_bamCoverage $sample $sb_fwd 83 "None" 1 "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_fwd
-                # if get TSS position
-                # run_bamCoverage $sample $sb_fwd 163 "None" 1 "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_fwd
-            fi
-            if [[ ! -s $sb_rev_minus ]]; then
-                echo "Generating file: $sb_rev_minus"
-                run_bamCoverage $sample $sb_rev_minus 99 "None" "-1" "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_rev_minus
-                # if get TSS position
-                # run_bamCoverage $sample $sb_rev_minus 147 "None" "-1" "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_rev_minus
-            fi
-            echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
-        done
     fi
+    ls ${rmdupExpDir}/*_${exp_info}_rmdup.bam | while read sample; do
+        sampleName=$(basename ${sample%_${exp_info}_rmdup.bam})
+        sb_fwd=${noScaledBwDir}/${sampleName}_none_normalized_singlebase_fwd.bw; sb_rev_minus=${noScaledBwDir}/${sampleName}_none_normalized_singlebase_rev_minus.bw
+        if [[ ! -s $sb_fwd ]]; then
+            echo "Generating file: $sb_fwd"
+            run_bamCoverage $sample $sb_fwd 83 "None" 1 "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_fwd
+            # if get TSS position
+            # run_bamCoverage $sample $sb_fwd 163 "None" 1 "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_fwd
+        fi
+        if [[ ! -s $sb_rev_minus ]]; then
+            echo "Generating file: $sb_rev_minus"
+            run_bamCoverage $sample $sb_rev_minus 99 "None" "-1" "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_rev_minus
+            # if get TSS position
+            # run_bamCoverage $sample $sb_rev_minus 147 "None" "-1" "--Offset 1" ${noScaledBwLogDir}/${sampleName}_none_normalized_singlebase_rev_minus
+        fi
+        echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+    done
 fi
 
 # Step5: identify TRE
@@ -761,7 +795,7 @@ if [[ $identifyTRE != 'none' ]]; then
     # PINTS
     if [[ $identifyTRE == 'all' || $identifyTRE == 'PINTS' ]]; then
         echo -e "\n***************************\nCalling TRE with PINTS at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-        echo -e "PINTS can take multiple bams as input and gain some insight from the replicates. If you have biological replicates, you may want to merge them to call peak: --bam-file test_rep1.bam test_rep2.bam test_rep3.bam\n\n"
+        echo -e "PINTS can take multiple bams as input and gain some insight from the replicates. If you have biological replicates, you may need to merge them to call peak: --bam-file test_rep1.bam test_rep2.bam test_rep3.bam\n\n"
         if [[ ! -d $pintsDir ]]; then
             mkdir -p $pintsDir
             mkdir -p $pintsLogDir
@@ -782,6 +816,7 @@ if [[ $identifyTRE != 'none' ]]; then
     # dREG
     if [[ $identifyTRE == 'all' || $identifyTRE == 'dREG' ]]; then
         echo -e "\n***************************\nCalling TRE with dREG at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+        echo -e "To a reasonable statistical power for discovering TREs, dREG need as few as ~40M uniquely mappable reads. If the sequencing depth is not enough and you have biological replicates, you may need to merge them to call peak\n\n"
         if [[ ! -d $dREGDir ]]; then
             mkdir -p $dREGDir
             mkdir -p $dREGLogDir
