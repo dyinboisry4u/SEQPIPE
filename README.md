@@ -65,7 +65,8 @@ nohup bash RNASEQ_STAR_Salmon_Spikein.sh "/chenfeilab/Gaux/rawDataBackup/*/*" sa
 ```
 
 ## PRO-seq/cap
-PRO-seq data with (or without) spike-in normalizaton for [qPRO-seq protocol](https://www.biorxiv.org/content/10.1101/2020.05.18.102277v1.full) and [rPRO-seq protocol](https://www.biorxiv.org/content/10.1101/2024.05.08.593182v1). PRO-cap is [PRO-cap protocol](https://www.nature.com/articles/nprot.2016.086) but a library struceture same as qPRO-seq.<br>
+PRO-seq data with (or without) spike-in normalizaton for [qPRO-seq protocol](https://www.biorxiv.org/content/10.1101/2020.05.18.102277v1.full) and [rPRO-seq protocol](https://www.biorxiv.org/content/10.1101/2024.05.08.593182v1).<br>
+PRO-cap is [PRO-cap protocol](https://www.nature.com/articles/nprot.2016.086) but a library struceture same as qPRO-seq.<br>
 Alignment: [Bowtie2](https://github.com/BenLangmead/bowtie2) <br>
 Peak Calling: [dREG](https://github.com/Danko-Lab/dREG) and [PINTS](https://github.com/hyulab/PINTS)
 
@@ -75,7 +76,7 @@ bash PROSEQ_rPRO_qPRO_Spikein.sh <rawDataRawDir> <sampleInfo> <runInfo> <spikeIn
 
 <rawDataRawDir>: raw data directory
 <sampleInfo>: space separated sample information file
-<runInfo>: run information, such as date, owner, etc
+<runInfo>: a description for the run, e.g., 'PROseq_241130'
 <spikeIn>: if spike-in PRO-seq library, 'Y' or 'N'
 <expRef>: experiment genome reference, 'hg38', 'hg19' or 'mm10'
 <libType>: PRO-seq library type, 'qPRO', 'rPRO' or 'PROcap'
