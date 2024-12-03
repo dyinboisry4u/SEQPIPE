@@ -4,11 +4,11 @@ A collection of bash pipelines for NGS data upstream analysis from the [ChenLab]
 
 **NGS data:**<br>
 - [RNA-seq](#RNA-seq)
-- [PRO-seq](#PRO-seq)
+- [PRO-seq/cap](#PRO-seq/cap)
 - [TT-seq](#TT-seq)
 - [ATAC-seq](#ATAC-seq)
 - [ChIP-seq](#ChIP-seq)
-- [CUT&Tag](#CUT&Tag)
+- [CUT&Tag/RUN](#CUT&Tag/RUN)
 ...
 
 Correspondence: ShaoxuanWang@hotmail.com
@@ -106,6 +106,6 @@ nohup bash PROSEQ_rPRO_qPRO_Spikein.sh /chenfeilab/Gaux/rawDataBackup/xxx/xxxxxx
 ...
 
 
-## CUT&Tag
+## CUT&Tag/RUN
 ...
 ...

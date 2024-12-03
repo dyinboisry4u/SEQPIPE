@@ -60,7 +60,7 @@ else
 	    usage
     fi
 fi
-if [[ ! -s "$sampleInfo" ]];then
+if [[ ! -s "$sampleInfo" ]]; then
     echo "Error: $sampleInfo is not a valid file!"
     usage
 fi
@@ -76,7 +76,7 @@ if [[ "$quantMethod" != "featureCounts" && "$quantMethod" != "Salmon" ]]; then
     echo "Error: Invalid quantMethod value! Must be 'featureCounts' or 'Salmon'."
     usage
 fi
-if [[ "$bw" != "Y" && "$bw" != "N" ]];then
+if [[ "$bw" != "Y" && "$bw" != "N" ]]; then
     echo "Erroe: Invalid bw value! Must be 'Y' or 'N'."
     usage
 fi
@@ -314,7 +314,7 @@ if [[ ! -d $map2ExpDir ]]; then
     mkdir -p $map2ExpDir
     mkdir -p $map2ExpLogDir
 fi
-for r1 in `ls ${trimDir}/*_1.fq.gz`;do
+for r1 in `ls ${trimDir}/*_1.fq.gz`; do
     r2=${r1/R1_val_1.fq.gz/R2_val_2.fq.gz}
     sampleName=$(basename ${r1%_R1_val_1.fq.gz})
     outPrefix=${map2ExpDir}/${sampleName}_${exp_info}_
@@ -335,13 +335,13 @@ for r1 in `ls ${trimDir}/*_1.fq.gz`;do
 done
 
 # align to spike-in
-if [[ $spikeIn == 'Y' ]];then
+if [[ $spikeIn == 'Y' ]]; then
     echo -e "\n***************************\nAligning to spike-in at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-    if [[ ! -d $map2SpkDir ]];then
+    if [[ ! -d $map2SpkDir ]]; then
         mkdir -p $map2SpkDir
         mkdir -p $map2SpkLogDir
     fi
-    for r1 in `ls ${trimDir}/*_1.fq.gz`;do
+    for r1 in `ls ${trimDir}/*_1.fq.gz`; do
         r2=${r1/R1_val_1.fq.gz/R2_val_2.fq.gz}
         sampleName=$(basename ${r1%_R1_val_1.fq.gz})
         outPrefix=${map2SpkDir}/${sampleName}_${spike_info}_
@@ -404,16 +404,18 @@ ls ${map2ExpDir}/*_${exp_info}_Aligned.sortedByCoord.out.bam | while read bam; d
         else
             exit 1
         fi
+        echo -e "Finish MarkDuplicates, filter singletons and get statistics(flagstat) of $(basename ${filteredBam}) for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+    else
+        echo -e "Finish MarkDuplicates, filter singletons and get statistics(flagstat) for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
     fi
-    echo -e "Finish MarkDuplicates, filter singletons and get statistics(flagstat) of $(basename ${filteredBam}) for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
 done
 # summary
 $multiqc -f -n exp_alignment_multiqc_${runInfo} -o $filterExpBamDir -x "*STARpass1" $filterExpBamDir $map2ExpDir
 
 
 # spikeIn for genome
-if [[ $spikeIn == 'Y' ]];then
-    if [[ ! -d $filterSpkBamDir ]];then
+if [[ $spikeIn == 'Y' ]]; then
+    if [[ ! -d $filterSpkBamDir ]]; then
         mkdir -p $filterSpkBamDir
     fi
     echo -e "\n***************************\nMarking duplicate for spike-in at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
@@ -437,8 +439,10 @@ if [[ $spikeIn == 'Y' ]];then
             $samtools index -@ 48 $filteredGenomeBam
             bamGenomeStat=${filterSpkBamDir}/${sampleName}_${spike_info}.genome.flagstat
             $samtools flagstat -@ 48 $filteredGenomeBam > $bamGenomeStat
+            echo -e "Finish MarkDuplicates, filter singletons and get statistics(flagstat) of $(basename ${filteredGenomeBam}) for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+        else
+            echo -e "Finish MarkDuplicates, filter singletons and get statistics(flagstat) for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
         fi
-        echo -e "Finish MarkDuplicates, filter singletons and get statistics(flagstat) of $(basename ${filteredGenomeBam}) for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
     done
     # summary
     $multiqc -f -n spk_alignment_multiqc_${runInfo} -o $filterSpkBamDir -x "*STARpass1" $filterSpkBamDir $map2SpkDir
@@ -474,9 +478,9 @@ if [[ ! -d $summaryDir ]]; then
 fi
 
 # Step4: get bw track
-if [[ $bw == 'Y' ]];then
-    if [[ $spikeIn == 'Y' ]];then
-        if [[ ! -d $spkScaledBwDir ]];then
+if [[ $bw == 'Y' ]]; then
+    if [[ $spikeIn == 'Y' ]]; then
+        if [[ ! -d $spkScaledBwDir ]]; then
             mkdir -p $spkScaledBwDir
             mkdir -p $spkScaledBwLogDir
         fi
