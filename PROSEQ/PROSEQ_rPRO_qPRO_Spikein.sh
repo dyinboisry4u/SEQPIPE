@@ -19,7 +19,7 @@
 # XXX_002 XXX_PRO-seq_220319_DLD1-PNUTS-dTAG-3h-rep2
 
 usage() {
-    echo "Usage: $0 <rawDataRawDir> <sampleInfo> <runInfo> <spikeIn> <expRef> <libType> <umiLen> <identifyTRE>"
+    echo "Usage: $0 <rawDataRawDir> <sampleInfo> <runInfo> <spikeIn> <expRef> <libType> <umiLen> <identifyTRE> <noNormBw>"
     echo "  rawDataRawDir: raw data directory"
     echo "  sampleInfo: space separated sample information file"
     echo "  runInfo: a description for the run, e.g., 'PROseq_241130' "
