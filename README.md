@@ -4,11 +4,11 @@ A collection of bash pipelines for NGS data upstream analysis from the [ChenLab]
 
 **NGS data:**<br>
 - [RNA-seq](#RNA-seq)
-- [PRO-seq/cap](#PRO-seq/cap)
+- [PRO-seq/cap](#PRO-seqcap)
 - [TT-seq](#TT-seq)
 - [ATAC-seq](#ATAC-seq)
 - [ChIP-seq](#ChIP-seq)
-- [CUT&Tag/RUN](#CUT&Tag/RUN)
+- [CUT&Tag/RUN](#CUT&TagRUN)
 ...
 
 Correspondence: ShaoxuanWang@hotmail.com
@@ -107,5 +107,22 @@ nohup bash PROSEQ_rPRO_qPRO_Spikein.sh /chenfeilab/Gaux/rawDataBackup/xxx/xxxxxx
 
 
 ## CUT&Tag/RUN
-...
-...
+CUT&Tag and CUT&RUN data with (or without) spike-in normalizaton and IgG negative control.<br>
+Alignment: [Bowtie2](https://github.com/BenLangmead/bowtie2) <br>
+Peak Calling: [MACS3](https://github.com/macs3-project/MACS) and [SEACR](https://github.com/FredHutch/SEACR)
+
+> Run CUT&Tag CUT&RUN pipe
+```
+bash CUTTAG_CUTRUN_Spikein_IgG.sh <rawDataRawDir> <sampleInfo> <runInfo> <spikeIn> <expRef> <spkRef> <libType> <controlIgG> <callPeak> <peakType>
+
+<rawDataRawDir>: raw data directory"
+<sampleInfo>: space separated sample information file"
+<runInfo>: a description for the run, e.g., 'CUTTAG_H3K4me3_241230' "
+<spikeIn>: if spike-in CUTTAG library, 'Y' or 'N' "
+<expRef>: experiment genome reference, 'hg38', 'hg19', 'mm10' "
+<spkRef>: spike-in genome reference, 'dm6', 'k12', 'hg38', 'mm10' "
+<libType>: library type, 'CUTTAG' or 'CUTRUN' "
+<controlIgG>: if IgG as negative control, 'Y' or 'N' "
+<callPeak>: peak calling method, 'MACS3' or 'SEACR' "
+<peakType>: peak type, 'narrow' or 'broad' "
+```

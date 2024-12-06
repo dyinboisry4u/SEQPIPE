@@ -116,6 +116,8 @@ salmonLogDir=${logDir}/quantification_Salmon_log
 fastqc='/share/home/Grape/software/install_pkg/miniconda3/envs/rnaseq/bin/fastqc'
 # # multiqc version 1.25.1
 multiqc='/share/home/Grape/software/install_pkg/miniconda3/envs/rnaseq/bin/multiqc'
+# # cutadapt version 4.9
+cutadapt='/share/home/Grape/software/install_pkg/miniconda3/envs/rnaseq/bin/cutadapt'
 # # trim_galore version 0.6.10 with cutadapt version 4.9
 trim_galore='/share/home/Grape/software/install_pkg/miniconda3/envs/rnaseq/bin/trim_galore'
 # # STAR version 2.7.11b
@@ -256,6 +258,7 @@ if [[ ! -d $trimDir ]]; then
         r2=${r1/R1.fq.gz/R2.fq.gz}
         sampleName=$(basename ${r1%_R1.fq.gz})
         $trim_galore --phred33 -j 4 -o $trimDir -q 25 --length 30 -e 0.1 --stringency 4 \
+        --path_to_cutadapt $cutadapt \
         --paired $r1 $r2 &> ${trimLogDir}/${sampleName}_cutadapt.log &
         nohup_number=`echo $nohup_number+8 | bc`
         if [[ $nohup_number -eq 48 ]]; then
