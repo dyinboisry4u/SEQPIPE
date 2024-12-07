@@ -8,7 +8,7 @@ A collection of bash pipelines for NGS data upstream analysis from the [ChenLab]
 - [TT-seq](#TT-seq)
 - [ATAC-seq](#ATAC-seq)
 - [ChIP-seq](#ChIP-seq)
-- [CUT&Tag/RUN](#CUT&TagRUN)
+- [CUT&Tag/RUN](#cuttagrun)
 ...
 
 Correspondence: ShaoxuanWang@hotmail.com
@@ -61,6 +61,7 @@ bash RNASEQ_STAR_Salmon_Spikein.sh <rawDataRawDir> <sampleInfo> <runInfo> <spike
 For example,
 ```bash
 nohup bash RNASEQ_STAR_Salmon_Spikein.sh /chenfeilab/Gaux/rawDataBackup/test/241018_RNA-Seq sampleInfo.txt 241018_RNASEQ N hg38 Salmon N &> 241018_RNASeq.log &
+# If your file path contain wildcards, please enclose the path in double quotes to prevent bash wildcard expansion.
 nohup bash RNASEQ_STAR_Salmon_Spikein.sh "/chenfeilab/Gaux/rawDataBackup/*/*" sampleInfo.txt 241111_RNASEQ Y hg38 featureCounts N &> 241111_RNASeq.log &
 ```
 
