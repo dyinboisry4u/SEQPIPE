@@ -21,13 +21,14 @@ if (libType == 'qPRO') {
 
 # all sample insert
 insert_size <- list.files("./", pattern = '.hist$', ignore.case = FALSE) %>%
-  lapply(., function(x){read.table(x, header = FALSE, col.names = c("Size", gsub(".hist$","", x)))}) %>%
+  lapply(., function(x){read.table(x, header = FALSE, col.names = c("Size", gsub(".hist$","", x)), check.names = FALSE)}) %>%
   purrr::reduce(., dplyr::full_join, by = 'Size') %>% 
   dplyr::arrange(Size) %>%
   dplyr::mutate(Size = Size - offset) %>%
   tidyr::pivot_longer(!Size, names_to = "Sample", values_to = "Freq")
 
 # plot
+n_sample <- unique(insert_size$Sample) %>% length()
 p <- insert_size %>% 
   dplyr::filter(Size >= 10) %>%
   ggplot(., aes(x = Size, y = Freq)) +
@@ -44,9 +45,13 @@ p <- insert_size %>%
     axis.text = element_text(colour = "black"),
     axis.ticks = element_line(colour = "black"),
     panel.border = element_rect(fill = NA, colour = "black"),
-    legend.position = "right",
     legend.title = element_blank()
   )
+if (n_sample <= 24) {
+  p <- p + theme(legend.position = "right")
+} else {
+  p <- p + theme(legend.position = "none")
+}
 # save
 ggsave(filename = paste0(runInfo, "_all_sample_insert_size_distribution.pdf"), plot = p, width = 12, height = 8)
 

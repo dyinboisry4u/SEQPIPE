@@ -137,6 +137,7 @@ map2SpkLogDir=${logDir}/bowtie2_spikein_genome_alignment_log
 rmdupExpLogDir=${logDir}/umitools_rmdup_experimental_log
 rmdupSpkLogDir=${logDir}/umitools_rmdup_spikein_log
 summaryDir=${logDir}/alignment_summary_${runInfo}.txt
+advSummaryDir=${logDir}/advanced_summary_${runInfo}.txt
 spkScaledBwLogDir=${logDir}/bamCoverage_spikein_scaled_bw_log
 cpmScaledBwLogDir=${logDir}/bamCoverage_cpm_normalized_bw_log
 noScaledBwLogDir=${logDir}/bamCoverage_no_normalized_bw_log
@@ -584,6 +585,8 @@ fi
 # Step3: calculate spike-in scale factor
 # For PRO-seq, scale factor is CPM of spike-in mapped reads
 
+# Step3.1 basic metrics
+
 if [[ ! -d $summaryDir ]]; then
     echo -e "\n***************************\nCalculating alignment summary at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
     echo -e "sample_name\tall_reads\trRNA_reads\trRNA_mapping_ratio\tclean_reads\t${exp_info}_reads\t${exp_info}_mapping_ratio\t${exp_info}_qc_reads\t${exp_info}_qc_ratio\t${spike_info}_qc_reads\t${spike_info}_qc_ratio\t${spike_info}_unique_reads\t${spike_info}_unique_ratio\tscale_qc_factor\tscale_unique_factor" > $summaryDir
@@ -619,6 +622,34 @@ if [[ ! -d $summaryDir ]]; then
         echo -e ${sampleName}"\t"${allReads}"\t"${riboReads}"\t"${riboMapRatio}"\t"${cleanReads}"\t"${expReads}"\t"${expMapRatio}"\t"${expQcReads}"\t"${expQcRatio}"\t"${spkQcReads}"\t"${spkQcRatio}"\t"${spkUniqueReads}"\t"${spkUniqueRatio}"\t"${scaleQcFactor}"\t"${scaleUniqueFactor} >> $summaryDir
     done
     echo -e "Finish calculate alignment summary at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+fi
+
+# Step3.2 advanced metrics
+
+if [[ ! -d $advSummaryDir ]]; then
+    echo -e "\n***************************\nCalculating advanced summary at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+    echo -e "sample_name\tadapter_dimer_ratio\tdegradation_ratio\t${exp_info}_rRNA_ratio\t${exp_info}_mapping_ratio\t${exp_info}_avg_dup_per_reads" > $advSummaryDir
+    cat $summaryDir | sed '1d' | while read line; do
+        sampleName=`echo $line | awk '{print $1}'`
+        # too short reads
+        # NOTE: In TG Scott et.al 2022 bioRxiv, they calculate adapter ratio based on the reads with a length of less than the UMI length+2 (and then removes reads shorter than 10 bp), but here we use <15bp as threshold (experimental value), so the ratio will be little higher than TG Scott
+        cutadaptLog=${trimLogDir}/${sampleName}_cutadapt.log
+        adapterRatio=`grep 'Pairs that were too short:' ${cutadaptLog} | perl -ne 'print $1 if /\(([\d\.]+)%\)/'`
+        # degradation summary
+        degradationFile=${insertLenDir}/${runInfo}_all_sample_degradation_ratio.txt
+        degradationRatio=`grep $sampleName $degradationFile | awk '{print $2}'`
+        # rRNA ratio: basic metrics column 4
+        riboMapRatio=`echo $line | awk '{print $4}'`
+        # exp genome ratio: basic metrics column 7
+        expMapRatio=`echo $line | awk '{print $7}'`
+        # exp average copies/duplicates of each read
+        umitoolsLog=${rmdupExpLogDir}/${sampleName}_${exp_info}_umitools.log
+        qcReadsPair=`grep 'INFO Reads: Input Reads:' $umitoolsLog | perl -ne 'print "$1\t" while /: (\d+)/g' | awk '{print $2}'`
+        dedupReadsPair=`grep 'INFO Number of reads out:' $umitoolsLog | perl -ne 'print "$1" if /: (\d+)/g'`
+        avgDupPerReads=`printf "%.2f\n" $(echo "${qcReadsPair}/${dedupReadsPair}" | bc -l)`
+        echo -e ${sampleName}"\t"${adapterRatio}"\t"${degradationRatio}"\t"${riboMapRatio}"\t"${expMapRatio}"\t"${avgDupPerReads} >> $advSummaryDir
+    done
+    echo -e "Finish calculate advanced metrics summary at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
 fi
 
 # Step4: get bw track
