@@ -471,7 +471,7 @@ fi
 # in old pipeline, <22bp reads can not be aligned, cause too short seed length and too strict score threshold
 # peak calling methods like dREG needs enriched reads to detect the transcriptional peaks, we need more reads: https://github.com/Danko-Lab/proseq2.0/tree/master?tab=readme-ov-file#notes-for-dreg-users
 
-echo -e "\n***************************\nAligning to experimental genome at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+echo -e "\n***************************\nAligning to experimental genome ($exp_info) at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
 if [[ ! -d $map2ExpDir ]]; then
     mkdir -p $map2ExpDir
     mkdir -p $map2ExpLogDir
@@ -505,7 +505,7 @@ done
 # Step2.2: align to spike-in
 
 if [[ $spikeIn == 'Y' ]];then
-    echo -e "\n***************************\nAligning to spike-in genome at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+    echo -e "\n***************************\nAligning to spike-in genome ($spike_info) at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
     if [[ ! -d $map2SpkDir ]];then
         mkdir -p $map2SpkDir
         mkdir -p $map2SpkLogDir
@@ -542,7 +542,7 @@ fi
 
 # Step2.3 remove duplicates for experimental bam
 
-echo -e "\n***************************\nDeduplicating for experimental bam at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+echo -e "\n***************************\nDeduplicating for experimental bam ($exp_info) at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
 if [[ ! -d $rmdupExpDir ]]; then
     mkdir -p $rmdupExpDir
     mkdir -p $rmdupExpLogDir
@@ -563,7 +563,7 @@ done
 # Step2.4 remove duplicates for spike-in bam
 
 if [[ $spikeIn == 'Y' ]]; then
-    echo -e "\n***************************\nDeduplicating for spike-in bam at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+    echo -e "\n***************************\nDeduplicating for spike-in bam ($spike_info) at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
     if [[ ! -d $rmdupSpkDir ]]; then
         mkdir -p $rmdupSpkDir
         mkdir -p $rmdupSpkLogDir
@@ -618,8 +618,10 @@ if [[ ! -d $summaryDir ]]; then
             spkUniqueRatio=`printf "%.2f\n" $(echo "100*${spkUniqueReads}/${cleanReads}" | bc -l)`
             scaleQcFactor=`echo "1000000/${spkQcReads}" | bc -l`
             scaleUniqueFactor=`echo "1000000/${spkUniqueReads}" | bc -l`
+            echo -e ${sampleName}"\t"${allReads}"\t"${riboReads}"\t"${riboMapRatio}"\t"${cleanReads}"\t"${expReads}"\t"${expMapRatio}"\t"${expQcReads}"\t"${expQcRatio}"\t"${spkQcReads}"\t"${spkQcRatio}"\t"${spkUniqueReads}"\t"${spkUniqueRatio}"\t"${scaleQcFactor}"\t"${scaleUniqueFactor} >> $summaryDir
+        else
+            echo -e ${sampleName}"\t"${allReads}"\t"${riboReads}"\t"${riboMapRatio}"\t"${cleanReads}"\t"${expReads}"\t"${expMapRatio}"\t"${expQcReads}"\t"${expQcRatio} >> $summaryDir
         fi
-        echo -e ${sampleName}"\t"${allReads}"\t"${riboReads}"\t"${riboMapRatio}"\t"${cleanReads}"\t"${expReads}"\t"${expMapRatio}"\t"${expQcReads}"\t"${expQcRatio}"\t"${spkQcReads}"\t"${spkQcRatio}"\t"${spkUniqueReads}"\t"${spkUniqueRatio}"\t"${scaleQcFactor}"\t"${scaleUniqueFactor} >> $summaryDir
     done
     echo -e "Finish calculate alignment summary at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
 fi
