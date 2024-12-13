@@ -1,10 +1,10 @@
 #!/usr/bin/bash
 
 # *******************************************
-# Date: 202411 Wangshaoxuan
-# Description: Pipeline for PRO-seq
+# Date: 202411 Wangshaoxuan (shaoxuanwang@hotmail.com)
+# Description: Pipeline for PRO-seq and PRO-cap
 # 1. Spike-in: With or without spike-in
-# 2. qPRO-seq protocol (duplex 6 nt UMI) or rPRO-seq protocol (5'/read2 single n nt UMI)
+# 2. Library: qPRO-seq protocol (duplex 6 nt UMI), rPRO-seq protocol (5'/read2 single n nt UMI) and PRO-cap (PE150)
 # 3. Alignment: Bowtie2 (there is no consensus on which aligner works best with PRO-seq)
 # 4. Peak calling: dREG, PINTS and HOMER (NRSA)
 # 5. QC metrics modified from TG Scott et.al 2022 bioRxiv and RF Sigauke et al. 2023 bioRxiv
@@ -587,7 +587,7 @@ fi
 
 # Step3.1 basic metrics
 
-if [[ ! -d $summaryDir ]]; then
+if [[ ! -s $summaryDir ]]; then
     echo -e "\n***************************\nCalculating alignment summary at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
     echo -e "sample_name\tall_reads\trRNA_reads\trRNA_mapping_ratio\tclean_reads\t${exp_info}_reads\t${exp_info}_mapping_ratio\t${exp_info}_qc_reads\t${exp_info}_qc_ratio\t${spike_info}_qc_reads\t${spike_info}_qc_ratio\t${spike_info}_unique_reads\t${spike_info}_unique_ratio\tscale_qc_factor\tscale_unique_factor" > $summaryDir
     basename -a $(ls ${map2ExpLogDir}/*_${exp_info}_bowtie2.log) | while read file; do
@@ -618,9 +618,10 @@ if [[ ! -d $summaryDir ]]; then
             spkUniqueRatio=`printf "%.2f\n" $(echo "100*${spkUniqueReads}/${cleanReads}" | bc -l)`
             scaleQcFactor=`echo "1000000/${spkQcReads}" | bc -l`
             scaleUniqueFactor=`echo "1000000/${spkUniqueReads}" | bc -l`
-            echo -e ${sampleName}"\t"${allReads}"\t"${riboReads}"\t"${riboMapRatio}"\t"${cleanReads}"\t"${expReads}"\t"${expMapRatio}"\t"${expQcReads}"\t"${expQcRatio}"\t"${spkQcReads}"\t"${spkQcRatio}"\t"${spkUniqueReads}"\t"${spkUniqueRatio}"\t"${scaleQcFactor}"\t"${scaleUniqueFactor} >> $summaryDir
-        else
-            echo -e ${sampleName}"\t"${allReads}"\t"${riboReads}"\t"${riboMapRatio}"\t"${cleanReads}"\t"${expReads}"\t"${expMapRatio}"\t"${expQcReads}"\t"${expQcRatio} >> $summaryDir
+        fi
+        echo -e ${sampleName}"\t"${allReads}"\t"${riboReads}"\t"${riboMapRatio}"\t"${cleanReads}"\t"${expReads}"\t"${expMapRatio}"\t"${expQcReads}"\t"${expQcRatio}"\t"${spkQcReads}"\t"${spkQcRatio}"\t"${spkUniqueReads}"\t"${spkUniqueRatio}"\t"${scaleQcFactor}"\t"${scaleUniqueFactor} >> $summaryDir
+        if [[ $spikeIn == 'N' ]]; then
+            cut -f 1-9 < $summaryDir > temp.txt && mv temp.txt $summaryDir
         fi
     done
     echo -e "Finish calculate alignment summary at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
@@ -628,7 +629,7 @@ fi
 
 # Step3.2 advanced metrics
 
-if [[ ! -d $advSummaryDir ]]; then
+if [[ ! -s $advSummaryDir ]]; then
     echo -e "\n***************************\nCalculating advanced summary at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
     echo -e "sample_name\tadapter_dimer_ratio\tdegradation_ratio\t${exp_info}_rRNA_ratio\t${exp_info}_mapping_ratio\t${exp_info}_avg_dup_per_reads" > $advSummaryDir
     cat $summaryDir | sed '1d' | while read line; do
