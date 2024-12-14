@@ -691,8 +691,8 @@ if [[ $spikeIn == 'Y' ]]; then
     cat ${logDir}/alignment_summary_${runInfo}.txt | sed '1d' | while read line; do
         arr=($line)
         sampleName=${arr[0]}
-        # if use unique: scaleFactor=${arr[14]}
-        scaleFactor=${arr[13]}
+        # if use unique: scaleFactor=${arr[15]}
+        scaleFactor=${arr[14]}
         bam=${rmdupExpDir}/${sampleName}_${exp_info}_rmdup.bam
         if [[ $libType != 'PROcap' ]]; then
             sb_fwd=${spkScaledBwDir}/${sampleName}_singlebase_fwd.bw; sb_rev=${spkScaledBwDir}/${sampleName}_singlebase_rev.bw; sb_rev_minus=${spkScaledBwDir}/${sampleName}_singlebase_rev_minus.bw
