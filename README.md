@@ -109,21 +109,24 @@ nohup bash PROSEQ_rPRO_qPRO_Spikein.sh /chenfeilab/Gaux/rawDataBackup/xxx/xxxxxx
 
 ## CUT&Tag/RUN
 CUT&Tag and CUT&RUN data with (or without) spike-in normalizaton and IgG negative control.<br>
+Spike-in strategy: fixed DNA or nuclei (randomly DNA) <br>
 Alignment: [Bowtie2](https://github.com/BenLangmead/bowtie2) <br>
-Peak Calling: [MACS3](https://github.com/macs3-project/MACS) and [SEACR](https://github.com/FredHutch/SEACR)
+Peak calling: [MACS3](https://github.com/macs3-project/MACS) and [SEACR](https://github.com/FredHutch/SEACR)
 
 > Run CUT&Tag CUT&RUN pipe
 ```
-bash CUTTAG_CUTRUN_Spikein_IgG.sh <rawDataRawDir> <sampleInfo> <runInfo> <spikeIn> <expRef> <spkRef> <libType> <controlIgG> <callPeak> <peakType>
+bash CUTTAG_CUTRUN_Spikein_IgG.sh <rawDataRawDir> <sampleInfo> <runInfo> <spikeIn> <expRef> <spkRef> <spkStrategy> <libType> <rmDup> <controlIgG> <callPeak> <peakType>
 
-<rawDataRawDir>: raw data directory"
-<sampleInfo>: space separated sample information file"
-<runInfo>: a description for the run, e.g., 'CUTTAG_H3K4me3_241230' "
-<spikeIn>: if spike-in CUTTAG library, 'Y' or 'N' "
-<expRef>: experiment genome reference, 'hg38', 'hg19', 'mm10' "
-<spkRef>: spike-in genome reference, 'dm6', 'k12', 'hg38', 'mm10' "
-<libType>: library type, 'CUTTAG' or 'CUTRUN' "
-<controlIgG>: if IgG as negative control, 'Y' or 'N' "
-<callPeak>: peak calling method, 'MACS3' or 'SEACR' "
-<peakType>: peak type, 'narrow' or 'broad' "
+<rawDataRawDir>: raw data directory. If path contains wildcards, enclose the path in quotes to prevent bash wildcard expansion
+<sampleInfo>: space separated sample information file, must have 2 (rawName newName) columns or 3 (rawName newName controlName) columns (if controlIgG is 'Y')
+<runInfo>: a description for the run, e.g., 'CUTTAG_H3K4me3_241230' 
+<spikeIn>: if spike-in CUTTAG library, 'Y' or 'N'
+<expRef>: experiment genome reference, 'hg38', 'hg19', 'mm10'
+<spkRef>: spike-in genome reference, 'dm6', 'k12', 'hg38', 'mm10', 'none'
+<spkStrategy>: spike-in normalization strategy, 'DNA', 'nuclei' or 'none'. DNA refers to a fixed DNA sequence, as included in many kits. (However, if the spike-in is randomly fragmented DNA, please set it as 'nuclei')
+<libType>: library type, 'CUTTAG' or 'CUTRUN'
+<rmDup>: remove duplicates or just mark them, 'remove' or 'mark'
+<controlIgG>: if IgG as negative control, 'Y' or 'N'
+<callPeak>: peak calling method, 'MACS3', 'SEACR' or 'none'
+<peakType>: peak type, 'narrow' or 'broad'
 ```
