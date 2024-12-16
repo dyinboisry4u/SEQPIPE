@@ -37,11 +37,11 @@ usage() {
     echo "  spikeIn: if spike-in CUTTAG library, 'Y' or 'N' "
     echo "  expRef: experiment genome reference, 'hg38', 'hg19', 'mm10' "
     echo "  spkRef: spike-in genome reference, 'dm6', 'k12', 'hg38', 'mm10', 'none' "
-    echo "  spkStrategy: spike-in normalization strategy, 'DNA' or 'nuclei', 'none'. DNA refers to a fixed DNA sequence, as included in many kits. (However, if the spike-in is randomly fragmented DNA, please set it as 'nuclei'). "
+    echo "  spkStrategy: spike-in normalization strategy, 'DNA', 'nuclei' or 'none'. DNA refers to a fixed DNA sequence, as included in many kits. (However, if the spike-in is randomly fragmented DNA, please set it as 'nuclei'). "
     echo "  libType: library type, 'CUTTAG' or 'CUTRUN' "
     echo "  rmDup: remove duplicates or just mark them, 'remove' or 'mark' "
     echo "  controlIgG: if IgG as negative control, 'Y' or 'N' "
-    echo "  callPeak: peak calling method, 'MACS3' or 'SEACR' "
+    echo "  callPeak: peak calling method, 'MACS3', 'SEACR' or 'none'"
     echo "  peakType: peak type, 'narrow' or 'broad' "
 
     exit 1
@@ -146,8 +146,8 @@ else
         echo "Warning: It seems you have IgG in this run, but controlIgG is set to 'N'. If you do not intend to use IgG, you may ignore this message."
     fi
 fi
-if [[ "$callPeak" != "MACS3" && "$callPeak" != "SEACR" ]]; then
-    echo "Error: Invalid callPeak value! Must be 'MACS3' or 'SEACR'."
+if [[ "$callPeak" != "MACS3" && "$callPeak" != "SEACR" && "$callPeak" != "none"]]; then
+    echo "Error: Invalid callPeak value! Must be 'MACS3', 'SEACR' or 'none'."
     usage
 fi
 if [[ "$peakType" != "narrow" && "$peakType" != "broad" ]]; then
@@ -201,6 +201,8 @@ cpmScaledBwLogDir=${logDir}/bamCoverage_cpm_normalized_bw_log
 macs3LogDir=${logDir}/MACS3_call_peak_log
 seacrLogDir=${logDir}/SEACR_call_peak_log
 
+# QC dir
+insertSizeDir=${logDir}/insert_size_distribution
 
 # all tools in cutrun env update at Oct 2024
 # # fastqc version 0.12.1
@@ -224,6 +226,10 @@ alignmentSieve='/share/home/Grape/software/install_pkg/miniconda3/envs/rnaseq/bi
 
 # # SEACR version 1.3
 
+# # R script
+Rscript='/opt/ohpc/pub/apps/R/4.2.2/bin/Rscript'
+plot_insert_size_distribution='/share/home/Grape/SEQPIPE/CUTTAG_and_CUTRUN/plot_insert_size_distribution.R'
+
 
 # Bowtie2 index
 hg38Index='/share/home/Grape/genome/Homo_sapiens/bowtie2_index/hg38/hg38'
@@ -246,6 +252,7 @@ if [[ $(echo $expRef | sed 's/[0-9]//g') == $(echo $spkRef | sed 's/[0-9]//g') ]
     echo "Error: expRef and spkRef must from different organism genomes!"
     exit 1
 fi
+
 if [[ $spikeIn == 'Y' ]]; then
     spkIndex="${spkRef}Index"
     spkBowtie2Index=${!spkIndex}
@@ -253,6 +260,7 @@ if [[ $spikeIn == 'Y' ]]; then
 else
     spike_info=''
 fi
+
 expIndex="${expRef}Index"
 expBowtie2Index=${!expIndex}
 exp_info=${expRef}
@@ -524,8 +532,8 @@ ls ${markDupExpDir}/*_${exp_info}.*.bam | while read bam; do
         if [[ ! -s $shiftBam ]]; then
             echo -e "Shifting reads for ${fileName%_$exp_info}..."
             $alignmentSieve --numberOfProcessors 48 --ATACshift --bam $cleanBam -o $tempBam
-            samtools sort -@ 48 $tempBam -o $shiftBam
-            samtools index -@ 48 $shiftBam
+            $samtools sort -@ 48 $tempBam -o $shiftBam
+            $samtools index -@ 48 $shiftBam
             unlink $tempBam
         fi
     fi
@@ -589,8 +597,8 @@ if [[ ! -s $summaryDir ]]; then
             spkQcReads=`echo "2*$(cat $spkStat | grep "read1" | cut -d " " -f 1)" | bc -l`
             spkQcRatio=`printf "%.4f\n" $(echo "100*${spkQcReads}/${allReads}" | bc -l)`
             # Unique map to spkin but not map to exp (to avoid homogenous)
-            spkUniqueReads=`echo "2*$(comm --check-order -23 <(samtools view -@ 12 ${filterSpkBamDir}/${sampleName}_${spike_info}.clean.bam | cut -f 1 | sort -S48G --parallel=24 | uniq) \
-                <(samtools view -@ 12 ${filterExpBamDir}/${sampleName}_${exp_info}.clean.bam | cut -f 1 | sort -S62G --parallel=36 | uniq) | wc -l)" | bc -l`
+            spkUniqueReads=`echo "2*$(comm --check-order -23 <($samtools view -@ 12 ${filterSpkBamDir}/${sampleName}_${spike_info}.clean.bam | cut -f 1 | sort -S48G --parallel=24 | uniq) \
+                <($samtools view -@ 12 ${filterExpBamDir}/${sampleName}_${exp_info}.clean.bam | cut -f 1 | sort -S62G --parallel=36 | uniq) | wc -l)" | bc -l`
             spkUniqueRatio=`printf "%.4f\n" $(echo "100*${spkUniqueReads}/${allReads}" | bc -l)`
             if [[ $spkStrategy == 'DNA' ]]; then
                 const=10000
@@ -607,3 +615,106 @@ if [[ ! -s $summaryDir ]]; then
     done
     echo -e "Finish calculate alignment summary at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
 fi
+
+# Step3.2: get insert size distribution
+
+if [[ ! -d $insertSizeDir ]]; then
+    mkdir -p $insertSizeDir
+fi
+
+echo -e "\n***************************\nPlot insert size distribution at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+
+cat ${logDir}/alignment_summary_${runInfo}.txt | sed '1d' | while read line; do
+    arr=($line)
+    sampleName=${arr[0]}
+    txtFile=${insertSizeDir}/${sampleName}_insert_size.txt
+    if [[ ! -s $bw ]]; then
+        if [[ $libType == 'CUTTAG' ]]; then
+            bam=${filterExpBamDir}/${sampleName}_${exp_info}.clean.shift.bam
+        else
+            bam=${filterExpBamDir}/${sampleName}_${exp_info}.clean.bam
+        fi
+        $samtools view -@ 48 -f 66 $bam | cut -f 9 | awk '{print sqrt($0^2)}' | sort -S48G --parallel=24 | uniq -c | sort -b -k2,2n | sed -e 's/^[ \\t]*//' > $txtFile
+    fi
+done
+
+# plot
+echo -e "Finish get insert size, plot...\n"
+$Rscript $plot_insert_size_distribution $insertSizeDir $runInfo $libType
+
+# Step4: get bw track
+
+run_bamCoverage() {
+
+    local input=$1                # --bam
+    local output=$2               # --outFileName
+    local black_list=$3           # --blackListFileName
+    local norm=$4                 # --normalizeUsing
+    local scale_factor=$5         # --scaleFactor
+    local log_file_prefix=$6
+
+    $bamCoverage \
+        --skipNonCoveredRegions \
+        --binSize 1 \
+        --numberOfProcessors 48 \
+        --bam $input --outFileName $output \
+        --blackListFileName $black_list \
+        --normalizeUsing $norm \
+        --scaleFactor $scale_factor \
+        &> ${log_file_prefix}_bamCoverage.log
+
+}
+
+
+if [[ $spikeIn == 'Y' ]]; then
+    echo -e "\n***************************\nGetting spikein normalized track at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+    if [[ ! -d $spkScaledBwDir ]]; then
+        mkdir -p $spkScaledBwDir
+        mkdir -p $spkScaledBwLogDir
+    fi
+    cat ${logDir}/alignment_summary_${runInfo}.txt | sed '1d' | while read line; do
+        arr=($line)
+        sampleName=${arr[0]}
+        # if use unique: scaleFactor=${arr[11]}
+        scaleFactor=${arr[10]}
+        bw=${spkScaledBwDir}/${sampleName}.bw
+        bwLogPrefix=${spkScaledBwLogDir}/${sampleName}
+        if [[ ! -s $bw ]]; then
+            if [[ $libType == 'CUTTAG' ]]; then
+                bam=${filterExpBamDir}/${sampleName}_${exp_info}.clean.shift.bam
+            else
+                bam=${filterExpBamDir}/${sampleName}_${exp_info}.clean.bam
+            fi
+            run_bamCoverage $bam $bw $expBlacklist "None" $scaleFactor $bwLogPrefix
+        fi
+        echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+    done
+else
+    echo -e "\n***************************\nGetting CPM normalized track at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+    if [[ ! -d $cpmScaledBwDir ]]; then
+        mkdir -p $cpmScaledBwDir
+        mkdir -p $cpmScaledBwLogDir
+    fi
+    cat ${logDir}/alignment_summary_${runInfo}.txt | sed '1d' | while read line; do
+        arr=($line)
+        sampleName=${arr[0]}
+        bw=${cpmScaledBwDir}/${sampleName}.bw
+        bwLogPrefix=${cpmScaledBwLogDir}/${sampleName}
+        if [[ ! -s $bw ]]; then
+            if [[ $libType == 'CUTTAG' ]]; then
+                bam=${filterExpBamDir}/${sampleName}_${exp_info}.clean.shift.bam
+            else
+                bam=${filterExpBamDir}/${sampleName}_${exp_info}.clean.bam
+            fi
+            run_bamCoverage $bam $bw $expBlacklist "CPM" 1 $bwLogPrefix
+        fi
+        echo -e "Finish get track for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+    done 
+fi
+
+
+# Step5: peak calling
+### ongoing....
+### ongoing....
+### ongoing....
+### ongoing....
