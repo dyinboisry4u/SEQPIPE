@@ -17,14 +17,16 @@
 # nohup ./xxx.sh /chenfeilab/Gaux/rawDataBackup/xxx/xxxxxx_PRO-seq sampleInfo.txt 241108_PROSEQ N hg38 rPRO 6 none &> 241105_PROseq.log &
 # nohup ./xxx.sh "/chenfeilab/Pomelo/try/SXY/24rawdata/*/*" sampleInfo.txt test_SXY51to60_qPRO Y mm10 qPRO 6 all &> test_SXY51to60_qPRO.log &
 
-# sampleInfo.txt file format
-# # rawName newName control
+# sampleInfo.txt file
+# rawName newName controlName
 # XXX_001 XXX_CUTTAG_H3K4me3_DLD1_DMSO_rep1 XXX_CUTTAG_IgG_DLD1_DMSO_rep1
 # XXX_002 XXX_CUTTAG_H3K27ac_DLD1_DMSO_rep1 XXX_CUTTAG_IgG_DLD1_DMSO_rep1
 # XXX_003 XXX_CUTTAG_H3K4me3_DLD1_PNUTS_dTAG_rep1 XXX_CUTTAG_IgG_DLD1_PNUTS_dTAG_rep1
 # XXX_004 XXX_CUTTAG_H3K27ac_DLD1_PNUTS_dTAG_rep1 XXX_CUTTAG_IgG_DLD1_PNUTS_dTAG_rep1
-# XXX_005 XXX_CUTTAG_IgG_DLD1_DMSO_rep1 none
-# XXX_006 XXX_CUTTAG_IgG_DLD1_PNUTS_dTAG_rep1 none
+# XXX_005 XXX_CUTTAG_IgG_DLD1_DMSO_rep1 IgG
+# XXX_006 XXX_CUTTAG_IgG_DLD1_PNUTS_dTAG_rep1 IgG
+# XXX_007 XXX_CUTTAG_H3K4me3_293T_DMSO_rep1 none
+# XXX_008 XXX_CUTTAG_H3K27ac_293T_DMSO_rep1 none
 
 
 usage() {
@@ -157,8 +159,8 @@ fi
 
 # print
 echo -e "${libType/CUT/CUT&} parameters: \nrawDataRawDir: $rawDataRawDir\nsampleInfo: $sampleInfo\nrunInfo: $runInfo\nspikeIn: $spikeIn\nexpRef: $expRef\nspkRef: $spkRef\nspkStrategy: $spkStrategy\nlibType: $libType\nrmDup: $rmDup\ncontrolIgG: $controlIgG\ncallPeak: $callPeak\npeakType: $peakType"
-
-MAPQ=20
+# MAPQ
+MAPQ=30
 
 
 # output dirs
@@ -544,7 +546,7 @@ ls ${markDupExpDir}/*_${exp_info}.*.bam | while read bam; do
         if [[ ! -s $shiftBam ]]; then
             echo -e "Shifting reads for ${fileName%_$exp_info}..."
             $alignmentSieve --numberOfProcessors 48 --ATACshift --bam $cleanBam -o $tempBam
-            $samtools sort -@ 48 $tempBam -o $shiftBam
+            $samtools sort -@ 48 $tempBam -o $shiftBam 2> /dev/null
             $samtools index -@ 48 $shiftBam
             unlink $tempBam
         fi
@@ -772,7 +774,7 @@ seacr_call_peak() {
 
 if [[ $callPeak == 'MACS3' ]]; then
     echo -e "\n***************************\nCalling peak with $callPeak at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
-    echo -e "For lots of histone modifications and some TFs in particular cell lines/conditions, there may not be a best-practice set of parameters. It may require trying different parameters. Please set callPeak to "none" to skip this step.\n"
+    echo -e "For lots of TFs and some histone modifications in a specific cell line or condition, there may not be a best-practice set of parameters. So it may require trying different parameters, you could set callPeak to "none" to skip this step.\n"
     # MACS3
     if [[ ! -d $macs3Dir ]]; then
         mkdir -p $macs3Dir
@@ -780,7 +782,7 @@ if [[ $callPeak == 'MACS3' ]]; then
     fi
     cat $sampleInfo | while read line; do
         arr=($line)
-        sampleName=${arr[0]}
+        sampleName=${arr[1]}
         # call peak with control
         if [[ $controlIgG == 'Y' ]]; then
             # prepare input and log
@@ -797,7 +799,7 @@ if [[ $callPeak == 'MACS3' ]]; then
                 echo -e "${sampleName} peak calling with control: ${controlName}..."
             elif [[ $controlName == 'none' ]]; then
                 peakLogPrefix=${macs3LogDir}/${sampleName}_${peakType}_without_control
-                if [[ $libType == 'CUTTAG' ]];
+                if [[ $libType == 'CUTTAG' ]]; then
                     treatmentBam=${filterExpBamDir}/${sampleName}_${exp_info}.clean.shift.bam
                 else
                     treatmentBam=${filterExpBamDir}/${sampleName}_${exp_info}.clean.bam
@@ -833,7 +835,7 @@ if [[ $callPeak == 'MACS3' ]]; then
             # input
             echo -e "${sampleName} peak calling without control..."
             peakLogPrefix=${macs3LogDir}/${sampleName}_${peakType}_without_control
-            if [[ $libType == 'CUTTAG' ]]; 
+            if [[ $libType == 'CUTTAG' ]]; then
                 treatmentBam=${filterExpBamDir}/${sampleName}_${exp_info}.clean.shift.bam
             else
                 treatmentBam=${filterExpBamDir}/${sampleName}_${exp_info}.clean.bam
