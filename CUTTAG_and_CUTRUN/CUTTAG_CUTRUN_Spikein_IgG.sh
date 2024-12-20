@@ -146,7 +146,7 @@ else
         echo "Warning: It seems you have IgG in this run, but controlIgG is set to 'N'. If you do not intend to use IgG, you may ignore this message."
     fi
 fi
-if [[ "$callPeak" != "MACS3" && "$callPeak" != "SEACR" && "$callPeak" != "none"]]; then
+if [[ "$callPeak" != "MACS3" && "$callPeak" != "SEACR" && "$callPeak" != "none" ]]; then
     echo "Error: Invalid callPeak value! Must be 'MACS3', 'SEACR' or 'none'."
     usage
 fi
@@ -222,14 +222,19 @@ picard='/share/home/Grape/software/install_pkg/miniconda3/envs/mainenv/bin/picar
 # # deepTools version 3.5.5
 bamCoverage='/share/home/Grape/software/install_pkg/miniconda3/envs/rnaseq/bin/bamCoverage'
 alignmentSieve='/share/home/Grape/software/install_pkg/miniconda3/envs/rnaseq/bin/alignmentSieve'
-# # MACS version 
-
-# # SEACR version 1.3
+# # bedtools version 2.31.1
+bedtools='/share/home/Grape/software/install_pkg/miniconda3/envs/proseq/bin/bedtools'
+# # bedops version 2.4.41
+bedops='/share/home/Grape/software/bin/bedops'
+# # MACS version 3.0.2
+macs3='/share/home/Grape/software/install_pkg/miniconda3/envs/chipseq/bin/macs3'
+# # SEACR version 1.4-beta.2 (https://github.com/FredHutch/SEACR/archive/refs/tags/v1.4-beta.2.tar.gz)
+# # SEACR requires R and Bedtools to be available in your path
+seacr='/share/home/Grape/software/install_pkg/SEACR-1.4-beta.2/SEACR_1.4.sh'
 
 # # R script
 Rscript='/opt/ohpc/pub/apps/R/4.2.2/bin/Rscript'
 plot_insert_size_distribution='/share/home/Grape/SEQPIPE/CUTTAG_and_CUTRUN/plot_insert_size_distribution.R'
-
 
 # Bowtie2 index
 hg38Index='/share/home/Grape/genome/Homo_sapiens/bowtie2_index/hg38/hg38'
@@ -237,6 +242,11 @@ hg19Index='/share/home/Blueberry/reference/index/bowtie2/hg19/hg19'
 mm10Index='/share/home/Grape/genome/Mus_musculus/bowtie2_index/mm10/mm10'
 dm6Index='/share/home/Grape/genome/Drosophila_melanogaster/bowtie2_index/dm6/dm6'
 k12Index='/share/home/Grape/genome/Escherichia_coli/bowtie2_index/ASM584v2/ASM584v2'
+
+# genome size
+hg38gSize=2913022398
+hg19gSize=2864785220
+mm10gSize=2652783500
 
 # black list
 # Jonathan 2023: hg38 we use Kundaje 2020, hg19 and mm10 we use Boyle v2
@@ -264,6 +274,8 @@ fi
 expIndex="${expRef}Index"
 expBowtie2Index=${!expIndex}
 exp_info=${expRef}
+gSize="${expRef}gSize"
+expGenomeSize=${!gSize}
 blacklist="${expRef}Blacklist"
 expBlacklist=${!blacklist}
 echo -e "$exp_info blacklist is: $expBlacklist"
@@ -552,13 +564,13 @@ if [[ $spikeIn == 'Y' ]]; then
         mkdir -p $filterSpkBamDir
     fi
     ls ${map2SpkDir}/*_${spike_info}.bam | while read file; do
-        fileName=$(basename ${bam%.*.bam})
+        fileName=$(basename ${file%.bam})
         cleanBam=${filterSpkBamDir}/${fileName}.clean.bam
         cleanBamStat=${filterSpkBamDir}/${fileName}.clean.flagstat
         if [[ $spkStrategy == 'DNA' || $rmDup == 'mark' ]]; then
             bam=${file}
         else
-            bam=${markDupSpkDir}/$(basename ${bam%.*.bam}).rmdup.bam
+            bam=${markDupSpkDir}/$(basename ${file%.bam}).rmdup.bam
         fi
         # filter
         if [[ ! -s $cleanBam ]]; then
@@ -628,7 +640,7 @@ cat ${logDir}/alignment_summary_${runInfo}.txt | sed '1d' | while read line; do
     arr=($line)
     sampleName=${arr[0]}
     txtFile=${insertSizeDir}/${sampleName}_insert_size.txt
-    if [[ ! -s $bw ]]; then
+    if [[ ! -s $txtFile ]]; then
         if [[ $libType == 'CUTTAG' ]]; then
             bam=${filterExpBamDir}/${sampleName}_${exp_info}.clean.shift.bam
         else
@@ -714,7 +726,146 @@ fi
 
 
 # Step5: peak calling
-### ongoing....
-### ongoing....
-### ongoing....
-### ongoing....
+
+# Step5.1 MACS3
+macs3_call_peak() {
+
+    local bam=$1               # --treatment
+    local out_dir=$2           # --outdir
+    local file_prefix=$3       # --name
+    local extra_params=$4
+    local log_file_prefix=$5
+
+    $macs3 callpeak \
+        --format BAMPE \
+        --qvalue 0.05 \
+        --keep-dup all \
+        --bdg \
+        --treatment $bam \
+        --gsize $expGenomeSize \
+        --outdir $out_dir \
+        --name $file_prefix \
+        $extra_params \
+        2> ${log_file_prefix}_macs3.log
+}
+
+# Step5.2 SEACR
+seacr_call_peak() {
+
+    local bdg=$1                  # --bedgraph, -b
+    local norm=$2                 # --normalize, -n
+    local out_prefix=$3           # --output, -o
+    local extra_params=$4
+    local log_file_prefix=$5
+    
+    $seacr \
+    --bedgraph $bdg \
+    --normalize $norm \
+    --mode stringent \
+    --output $out_prefix \
+    --extension 0.1 \
+    $extra_params \
+    2> ${log_file_prefix}_SEACR.log
+}
+
+# call peak
+
+if [[ $callPeak == 'MACS3' ]]; then
+    echo -e "\n***************************\nCalling peak with $callPeak at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+    echo -e "For lots of histone modifications and some TFs in particular cell lines/conditions, there may not be a best-practice set of parameters. It may require trying different parameters. Please set callPeak to "none" to skip this step.\n"
+    # MACS3
+    if [[ ! -d $macs3Dir ]]; then
+        mkdir -p $macs3Dir
+        mkdir -p $macs3LogDir
+    fi
+    cat $sampleInfo | while read line; do
+        arr=($line)
+        sampleName=${arr[0]}
+        # call peak with control
+        if [[ $controlIgG == 'Y' ]]; then
+            # prepare input and log
+            controlName=${arr[2]}
+            if [[ $controlName != 'none' && $controlName != 'IgG' ]]; then
+                peakLogPrefix=${macs3LogDir}/${sampleName}_${peakType}_with_control
+                if [[ $libType == 'CUTTAG' ]]; then
+                    treatmentBam=${filterExpBamDir}/${sampleName}_${exp_info}.clean.shift.bam
+                    controlBam=${filterExpBamDir}/${controlName}_${exp_info}.clean.shift.bam
+                else
+                    treatmentBam=${filterExpBamDir}/${sampleName}_${exp_info}.clean.bam
+                    controlBam=${filterExpBamDir}/${controlName}_${exp_info}.clean.bam
+                fi
+                echo -e "${sampleName} peak calling with control: ${controlName}..."
+            elif [[ $controlName == 'none' ]]; then
+                peakLogPrefix=${macs3LogDir}/${sampleName}_${peakType}_without_control
+                if [[ $libType == 'CUTTAG' ]];
+                    treatmentBam=${filterExpBamDir}/${sampleName}_${exp_info}.clean.shift.bam
+                else
+                    treatmentBam=${filterExpBamDir}/${sampleName}_${exp_info}.clean.bam
+                fi
+                echo -e "${sampleName} peak calling without control..."
+            else
+                echo -e "${sampleName} is control or invalid file, skip..."
+                break
+            fi
+            # output
+            if [[ $peakType == 'narrow' ]]; then
+                peakBed=${macs3Dir}/${sampleName}_peaks.narrowPeak
+            else
+                peakBed=${macs3Dir}/${sampleName}_peaks.broadPeak
+            fi
+            # call peak
+            if [[ ! -s $peakBed ]] ; then
+                if [[ $controlName != 'none' ]]; then
+                    if [[ $peakType == 'narrow' ]]; then
+                        macs3_call_peak $treatmentBam $macs3Dir $sampleName "--control $controlBam" $peakLogPrefix
+                    else
+                        macs3_call_peak $treatmentBam $macs3Dir $sampleName "--control $controlBam --broad --broad-cutoff 0.1" $peakLogPrefix
+                    fi
+                else
+                    if [[ $peakType == 'narrow' ]]; then
+                        macs3_call_peak $treatmentBam $macs3Dir $sampleName "" $peakLogPrefix
+                    else
+                        macs3_call_peak $treatmentBam $macs3Dir $sampleName "--nolambda --broad --broad-cutoff 0.1" $peakLogPrefix
+                    fi
+                fi
+            fi
+        else
+            # input
+            echo -e "${sampleName} peak calling without control..."
+            peakLogPrefix=${macs3LogDir}/${sampleName}_${peakType}_without_control
+            if [[ $libType == 'CUTTAG' ]]; 
+                treatmentBam=${filterExpBamDir}/${sampleName}_${exp_info}.clean.shift.bam
+            else
+                treatmentBam=${filterExpBamDir}/${sampleName}_${exp_info}.clean.bam
+            fi
+            # output
+            if [[ $peakType == 'narrow' ]]; then
+                peakBed=${macs3Dir}/${sampleName}_peaks.narrowPeak
+            else
+                peakBed=${macs3Dir}/${sampleName}_peaks.broadPeak
+            fi
+            # call peak
+            if [[ ! -s $peakBed ]] ; then
+                if [[ $peakType == 'narrow' ]]; then
+                    macs3_call_peak $treatmentBam $macs3Dir $sampleName "" $peakLogPrefix
+                else
+                    macs3_call_peak $treatmentBam $macs3Dir $sampleName "--nolambda --broad --broad-cutoff 0.1" $peakLogPrefix
+                fi
+            fi
+        fi
+        # filter black list peak
+        if [[ $peakType == 'narrow' ]]; then
+            filterPeakBed=${macs3Dir}/${sampleName}_filter_peaks.narrowPeak
+        else
+            filterPeakBed=${macs3Dir}/${sampleName}_filter_peaks.broadPeak
+        fi
+        if [[ ! -s $filterPeakBed ]] ; then
+            bedops -n 1 $peakBed $expBlacklist > $filterPeakBed
+        fi
+        echo -e "Finish call ${peakType} peak for ${sampleName} at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+    done
+elif [[ $callPeak == 'SEACR' ]]; then
+    :
+else
+    echo -e "\nSkip peak calling\n"
+fi
