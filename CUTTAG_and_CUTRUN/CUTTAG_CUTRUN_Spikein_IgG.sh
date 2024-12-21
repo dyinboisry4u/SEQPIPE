@@ -195,6 +195,7 @@ markDupExpLogDir=${logDir}/picard_MarkDuplicates_experimental_log
 markDupSpkLogDir=${logDir}/picard_MarkDuplicates_spikein_log
 
 summaryDir=${logDir}/alignment_summary_${runInfo}.txt
+advSummaryDir=${logDir}/advanced_summary_${runInfo}.txt
 
 spkScaledBwLogDir=${logDir}/bamCoverage_spikein_scaled_bw_log
 cpmScaledBwLogDir=${logDir}/bamCoverage_cpm_normalized_bw_log
@@ -871,3 +872,47 @@ elif [[ $callPeak == 'SEACR' ]]; then
 else
     echo -e "\nSkip peak calling\n"
 fi
+
+
+# Step5.3: advanced QC metrics
+# Note: --local always has lower "unique mapped ratio" than --end-to-end mode, especially for short reads. It could be less strict than the >50%-70% (some people expected).
+
+if [[ ! -s $advSummaryDir ]]; then
+    echo -e "\n***************************\nCalculating advanced summary at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
+    echo -e "sample_name\t${exp_info}_mapping_ratio\t${exp_info}_unique_mapping_ratio\tmt_mapping_ratio\t${exp_info}_dup_ratio\tpeak_counts\tFRiP" > $advSummaryDir
+    cat $summaryDir | sed '1d' | while read line; do
+        sampleName=`echo $line | awk '{print $1}'`
+        # exp genome mapped: basic metrics column 4
+        expMapRatio=`echo $line | awk '{print $4}'`
+        # exp genome unique mapped
+        bowtie2Log=${map2ExpLogDir}/${sampleName}_${exp_info}_bowtie2.log
+        expUniqMapRatio=`cat $bowtie2Log | grep 'aligned concordantly exactly' | perl -ne 'print $1 if /\(([\d\.]+)%\)/'`
+        # mt ratio
+        expBam=${map2ExpDir}/${sampleName}_${exp_info}.bam
+        expReads=`echo $line | awk '{print $3}'`
+        mtMapReads=`samtools idxstats -@ 48 $expBam | grep 'chrM' | awk '{sum+=$3} END {print sum}'`
+        mtMapRatio=`printf "%.2f\n" $(echo "100*${mtMapReads}/${expReads}" | bc -l)`
+        # duplication ratio
+        markDupMetric=${markDupExpDir}/${sampleName}_${exp_info}.markdup.metrics
+        dupRatio=`printf "%.2f\n" $(echo "100*$(cat $markDupMetric | grep -A 2 '## METRICS CLASS' | awk -F '\t' '{print $9}' | sed '1,2d')" | bc -l)`
+        # peak counts
+        if [[ $peakType == 'narrow' ]]; then
+            peakBed=${macs3Dir}/${sampleName}_peaks.narrowPeak
+            nCol=11
+        else
+            peakBed=${macs3Dir}/${sampleName}_peaks.broadPeak
+            nCol=10
+        fi
+        peakCounts=`wc -l $peakBed`
+        # FRiP (fraction of reads in peaks), peak already sorted
+        filterExpBam=${filterExpBamDir}/${sampleName}_${exp_info}.clean.bam
+        # peakReads=`bedtools intersect -u -ubam -nonamecheck -a $filterExpBam -b $peakBed | samtools view -@ 24 -c`
+        peakReads=`bedtools intersect -c -nonamecheck -a $peakBed -b $filterExpBam | awk -v col="$nCol" '{sum+=$col} END {print sum}'`
+        expQcReads=`echo $line | awk '{print $5}'`
+        FRiP=`printf "%.2f\n" $(echo "100*${peakReads}/${expQcReads}" | bc -l)`
+        echo -e ${sampleName}"\t"${expMapRatio}"\t"${expUniqMapRatio}"\t"${mtMapRatio}"\t"${dupRatio}"\t"${peakCounts}"\t"${FRiP} >> $advSummaryDir
+    done
+    echo -e "Finish calculate advanced metrics summary at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)"
+fi
+
+echo -e "\n***************************\nFinish ${libType/CUT/CUT&} processing at $(date +%Y"-"%m"-"%d" "%H":"%M":"%S)\n***************************"
